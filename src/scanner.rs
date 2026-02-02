@@ -12,8 +12,13 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(target: String, config: ScanConfig) -> Result<Self> {
-        let zap_client = Arc::new(crate::zap::ZapClient::new(&config.zap.host)?);
+    pub fn new(target: String, config: ScanConfig, use_mock: bool) -> Result<Self> {
+        let zap_client = if use_mock {
+            Arc::new(crate::zap::ZapClient::mock()?)
+        } else {
+            Arc::new(crate::zap::ZapClient::new(&config.zap.host)?)
+        };
+
         Ok(Self {
             target,
             config,

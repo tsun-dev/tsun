@@ -5,6 +5,7 @@ A security scanning tool powered by OWASP ZAP. Designed as a StackHawk competito
 ## Features
 
 - **OWASP ZAP Integration**: Leverages OWASP ZAP for comprehensive security scanning
+- **Mock Mode**: Built-in test mode for development and CI/CD without a ZAP server
 - **CLI Tool**: Easy-to-use command-line interface for running security scans
 - **Flexible Configuration**: YAML-based configuration for customizing scan policies
 - **Multiple Report Formats**: Export results in JSON, YAML, or HTML
@@ -22,8 +23,11 @@ cargo build --release
 ### Run a Scan
 
 ```bash
-# Basic scan
+# Basic scan (requires ZAP server running)
 arete scan --target https://example.com
+
+# Mock scan (no ZAP server needed - perfect for testing)
+arete scan --target https://example.com --mock
 
 # With custom configuration
 arete scan --target https://example.com --config arete.yaml

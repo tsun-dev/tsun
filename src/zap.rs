@@ -4,8 +4,15 @@ use serde::Deserialize;
 use std::time::Duration;
 use tokio::time::sleep;
 
+/// Abstraction over real and mock ZAP clients
 #[derive(Debug)]
-pub struct ZapClient {
+pub enum ZapClient {
+    Real(RealZapClient),
+    Mock(crate::zap_mock::MockZapClient),
+}
+
+#[derive(Debug)]
+pub struct RealZapClient {
     client: Client,
     base_url: String,
 }
@@ -37,12 +44,46 @@ impl ZapClient {
             .timeout(Duration::from_secs(30))
             .build()?;
 
-        Ok(Self {
+        Ok(ZapClient::Real(RealZapClient {
             client,
             base_url: base_url.to_string(),
-        })
+        }))
     }
 
+    pub fn mock() -> Result<Self> {
+        Ok(ZapClient::Mock(crate::zap_mock::MockZapClient::new()?))
+    }
+
+    pub async fn check_health(&self) -> Result<()> {
+        match self {
+            ZapClient::Real(client) => client.check_health().await,
+            ZapClient::Mock(client) => client.check_health().await,
+        }
+    }
+
+    pub async fn start_scan(&self, target: &str) -> Result<String> {
+        match self {
+            ZapClient::Real(client) => client.start_scan(target).await,
+            ZapClient::Mock(client) => client.start_scan(target).await,
+        }
+    }
+
+    pub async fn wait_for_scan(&self, scan_id: &str, timeout_secs: u64) -> Result<()> {
+        match self {
+            ZapClient::Real(client) => client.wait_for_scan(scan_id, timeout_secs).await,
+            ZapClient::Mock(client) => client.wait_for_scan(scan_id, timeout_secs).await,
+        }
+    }
+
+    pub async fn get_alerts(&self, target: &str) -> Result<Vec<crate::report::Alert>> {
+        match self {
+            ZapClient::Real(client) => client.get_alerts(target).await,
+            ZapClient::Mock(client) => client.get_alerts(target).await,
+        }
+    }
+}
+
+impl RealZapClient {
     pub async fn check_health(&self) -> Result<()> {
         let url = format!("{}/JSON/core/action/version/", self.base_url);
         self.client.get(&url).send().await?;

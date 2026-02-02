@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "A security scanning tool powered by OWASP ZAP"
 
+[lib]
+name = "arete"
+path = "src/lib.rs"
+
 [[bin]]
 name = "arete"
 path = "src/main.rs"

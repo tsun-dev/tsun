@@ -3,6 +3,7 @@ use colored::Colorize;
 use std::path::PathBuf;
 
 mod zap;
+mod zap_mock;
 mod config;
 mod scanner;
 mod report;
@@ -42,6 +43,10 @@ enum Commands {
         /// Verbose logging
         #[arg(short, long)]
         verbose: bool,
+
+        /// Use mock ZAP client for testing
+        #[arg(long)]
+        mock: bool,
     },
     /// Generate a configuration template
     Init {
@@ -76,8 +81,9 @@ async fn main() -> anyhow::Result<()> {
             format,
             output,
             verbose,
+            mock,
         } => {
-            run_scan(target, config, format, output, verbose).await?;
+            run_scan(target, config, format, output, verbose, mock).await?;
         }
         Commands::Init { config } => {
             run_init(config)?;
@@ -96,6 +102,7 @@ async fn run_scan(
     format: String,
     output: Option<PathBuf>,
     verbose: bool,
+    use_mock: bool,
 ) -> anyhow::Result<()> {
     println!("{}", "Initializing security scan...".blue().bold());
 
@@ -105,11 +112,15 @@ async fn run_scan(
         ScanConfig::default()
     };
 
-    let mut scanner = Scanner::new(target, config)?;
+    let mut scanner = Scanner::new(target, config, use_mock)?;
 
     if verbose {
         println!("{}", "Running in verbose mode".yellow());
         scanner.set_verbose(true);
+    }
+
+    if use_mock {
+        println!("{}", "Using mock ZAP client (test mode)".magenta());
     }
 
     println!("{}", format!("Scanning target: {}", scanner.target()).cyan());

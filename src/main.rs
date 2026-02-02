@@ -7,6 +7,7 @@ mod zap_mock;
 mod config;
 mod scanner;
 mod report;
+mod html;
 
 use scanner::Scanner;
 use config::ScanConfig;

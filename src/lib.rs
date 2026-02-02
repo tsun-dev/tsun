@@ -62,6 +62,35 @@ mod tests {
         assert_eq!(config.policies.len(), 1);
         assert_eq!(config.policies[0], "default");
     }
+
+    #[tokio::test]
+    async fn test_html_report_generation() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let html = crate::html::generate_html_report(&report);
+        
+        // Verify HTML contains expected elements
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("Security Scan Report"));
+        assert!(html.contains("https://example.com"));
+        assert!(html.contains("Vulnerability Summary"));
+        assert!(html.contains("HIGH"));
+        assert!(html.contains("MEDIUM"));
+        assert!(html.contains("LOW"));
+        assert!(html.contains("<table"));
+        assert!(html.contains("Detailed Findings"));
+    }
 }
 
 pub mod config;
@@ -69,3 +98,4 @@ pub mod report;
 pub mod scanner;
 pub mod zap;
 pub mod zap_mock;
+pub mod html;

@@ -87,7 +87,8 @@ impl ScanReport {
         let content = match format {
             "json" => serde_json::to_string_pretty(&self)?,
             "yaml" => serde_yaml::to_string(&self)?,
-            _ => anyhow::bail!("Unsupported format: {}", format),
+            "html" => crate::html::generate_html_report(self),
+            _ => anyhow::bail!("Unsupported format: {}. Supported formats: json, yaml, html", format),
         };
 
         std::fs::write(path, content)?;

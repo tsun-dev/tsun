@@ -7,3 +7,8 @@
 .env
 .env.local
 *.log
+report.html
+report.json
+report.yaml
+report.xml
+*.pdf

@@ -51,6 +51,28 @@ impl ZapClient {
         }))
     }
 
+    /// Create a ZapClient with default headers applied to the underlying HTTP client
+    pub fn new_with_headers(base_url: &str, headers: &[(String, String)]) -> Result<Self> {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (k, v) in headers {
+            if let Ok(name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
+                if let Ok(val) = reqwest::header::HeaderValue::from_str(v) {
+                    header_map.insert(name, val);
+                }
+            }
+        }
+
+        let client = Client::builder()
+            .default_headers(header_map)
+            .timeout(Duration::from_secs(30))
+            .build()?;
+
+        Ok(ZapClient::Real(RealZapClient {
+            client,
+            base_url: base_url.to_string(),
+        }))
+    }
+
     pub fn mock() -> Result<Self> {
         Ok(ZapClient::Mock(crate::zap_mock::MockZapClient::new()?))
     }

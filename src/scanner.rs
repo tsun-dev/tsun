@@ -12,11 +12,21 @@ pub struct Scanner {
 }
 
 impl Scanner {
+    /// Convenience constructor kept for compatibility (no headers)
     pub fn new(target: String, config: ScanConfig, use_mock: bool) -> Result<Self> {
+        Self::new_with_headers(target, config, use_mock, Vec::new())
+    }
+
+    pub fn new_with_headers(
+        target: String,
+        config: ScanConfig,
+        use_mock: bool,
+        headers: Vec<(String, String)>,
+    ) -> Result<Self> {
         let zap_client = if use_mock {
             Arc::new(crate::zap::ZapClient::mock()?)
         } else {
-            Arc::new(crate::zap::ZapClient::new(&config.zap.host)?)
+            Arc::new(crate::zap::ZapClient::new_with_headers(&config.zap.host, &headers)?)
         };
 
         Ok(Self {

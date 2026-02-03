@@ -44,7 +44,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
     vec![
         Alert {
             pluginid: "10010".to_string(),
-            alertRef: "10010".to_string(),
+            alert_ref: "10010".to_string(),
             alert: "Cookie without Secure Flag".to_string(),
             name: "Cookie without Secure Flag".to_string(),
             riskcode: "2".to_string(), // High
@@ -66,7 +66,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
         },
         Alert {
             pluginid: "10015".to_string(),
-            alertRef: "10015".to_string(),
+            alert_ref: "10015".to_string(),
             alert: "Re-CAPTCHA Detected".to_string(),
             name: "Re-CAPTCHA Detected".to_string(),
             riskcode: "0".to_string(), // Informational
@@ -86,7 +86,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
         },
         Alert {
             pluginid: "90018".to_string(),
-            alertRef: "90018".to_string(),
+            alert_ref: "90018".to_string(),
             alert: "Header Injection".to_string(),
             name: "Header Injection".to_string(),
             riskcode: "2".to_string(), // High
@@ -106,7 +106,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
         },
         Alert {
             pluginid: "10021".to_string(),
-            alertRef: "10021".to_string(),
+            alert_ref: "10021".to_string(),
             alert: "X-Frame-Options Header Missing".to_string(),
             name: "X-Frame-Options Header Missing".to_string(),
             riskcode: "2".to_string(), // High
@@ -126,7 +126,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
         },
         Alert {
             pluginid: "10035".to_string(),
-            alertRef: "10035".to_string(),
+            alert_ref: "10035".to_string(),
             alert: "Strict-Transport-Security Header Missing".to_string(),
             name: "Strict-Transport-Security Header Missing".to_string(),
             riskcode: "1".to_string(), // Medium
@@ -146,7 +146,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
         },
         Alert {
             pluginid: "10037".to_string(),
-            alertRef: "10037".to_string(),
+            alert_ref: "10037".to_string(),
             alert: "Server Leaks Version Information".to_string(),
             name: "Server Leaks Version Information".to_string(),
             riskcode: "1".to_string(), // Medium

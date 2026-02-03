@@ -27,6 +27,7 @@ impl Scanner {
         })
     }
 
+    #[allow(dead_code)]
     pub fn target(&self) -> &str {
         &self.target
     }

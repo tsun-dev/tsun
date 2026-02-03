@@ -18,6 +18,7 @@ pub struct RealZapClient {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ZapResponse<T> {
     #[serde(flatten)]
     data: T,

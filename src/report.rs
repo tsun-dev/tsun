@@ -12,7 +12,8 @@ pub enum SeverityLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     pub pluginid: String,
-    pub alertRef: String,
+    #[serde(rename = "alertRef")]
+    pub alert_ref: String,
     pub alert: String,
     pub name: String,
     pub riskcode: String,

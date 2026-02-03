@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 use std::path::PathBuf;
 
 mod zap;
@@ -9,9 +8,11 @@ mod scanner;
 mod report;
 mod html;
 mod validation;
+mod display;
 
 use scanner::Scanner;
 use config::ScanConfig;
+use display::Display;
 
 #[derive(Parser)]
 #[command(name = "arete")]
@@ -129,7 +130,12 @@ async fn run_scan(
             .map_err(|e| anyhow::anyhow!("Invalid output path: {}", e))?;
     }
 
-    println!("{}", "Initializing security scan...".blue().bold());
+    Display::section_header("Security Scan");
+    Display::status("Target", &target);
+    Display::status("Format", &format);
+    if let Some(ref path) = config_path {
+        Display::status("Config", path.to_string_lossy().as_ref());
+    }
 
     let config = if let Some(path) = config_path {
         ScanConfig::from_file(&path)?
@@ -140,27 +146,34 @@ async fn run_scan(
     let mut scanner = Scanner::new(target, config, use_mock)?;
 
     if verbose {
-        println!("{}", "Running in verbose mode".yellow());
+        Display::info("Verbose logging enabled");
         scanner.set_verbose(true);
     }
 
     if use_mock {
-        println!("{}", "Using mock ZAP client (test mode)".magenta());
+        Display::warning("Using mock ZAP client (test mode)");
     }
 
-    println!("{}", format!("Scanning target: {}", scanner.target()).cyan());
-    
+    // Run scan with spinner
+    let spinner = Display::spinner("Executing security scan...");
     let mut report = scanner.run().await?;
+    spinner.finish_with_message("✓ Scan completed");
 
     // Apply severity filter
     report.filter_by_severity(&min_severity)?;
 
-    println!("{}", "Scan completed successfully".green().bold());
-    println!("\n{}", format!("Vulnerabilities found: {}", report.vulnerability_count()).yellow());
+    // Display results
+    Display::vulnerability_summary(
+        report.vulnerability_count(),
+        report.critical_count(),
+        report.high_count(),
+        report.medium_count(),
+        report.low_count(),
+    );
 
     if let Some(output_path) = output {
         report.save(&output_path, &format)?;
-        println!("{}", format!("Report saved to: {}", output_path.display()).green());
+        Display::success(&format!("Report saved to: {}", output_path.display()));
     } else {
         println!("\n{}", report.summary());
     }
@@ -171,28 +184,23 @@ async fn run_scan(
 fn run_init(config_path: String) -> anyhow::Result<()> {
     let template = ScanConfig::template();
     std::fs::write(&config_path, template)?;
-    println!(
-        "{}",
-        format!("Configuration template created: {}", config_path).green()
-    );
+    Display::success(&format!("Configuration template created: {}", config_path));
     Ok(())
 }
 
 async fn run_status(host: String) -> anyhow::Result<()> {
-    println!("{}", "Checking ZAP server status...".cyan());
-    
+    Display::section_header("ZAP Server Status");
+    Display::status("Host", &host);
+
+    let spinner = Display::spinner("Checking connectivity...");
     match zap::check_health(&host).await {
         Ok(_) => {
-            println!(
-                "{}",
-                format!("✓ ZAP server is healthy at {}", host).green().bold()
-            );
+            spinner.finish_with_message("✓ Server check complete");
+            Display::success(&format!("ZAP server is healthy at {}", host));
         }
         Err(e) => {
-            println!(
-                "{}",
-                format!("✗ Failed to connect to ZAP server: {}", e).red().bold()
-            );
+            spinner.finish_with_message("✗ Server check failed");
+            Display::error(&format!("Failed to connect to ZAP server: {}", e));
         }
     }
 

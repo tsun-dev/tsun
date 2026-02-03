@@ -88,3 +88,51 @@ timeout: 300
 - **zap.rs**: OWASP ZAP API client
 - **config.rs**: Configuration management
 - **report.rs**: Scan result reporting and formatting
+
+## SARIF & CI Integration
+
+arete can export SARIF reports and upload them to GitHub Code Scanning. This enables findings to appear in the Security tab and inline on PRs.
+
+Usage examples:
+
+Generate a SARIF report:
+
+```bash
+arete scan --target https://example.com --mock --format sarif --output report.sarif
+```
+
+Upload SARIF to GitHub (requires `GITHUB_TOKEN` or `--token`):
+
+```bash
+# using environment variable
+arete upload-sarif --file report.sarif --repo owner/repo --commit <COMMIT_SHA> --git-ref refs/heads/main
+
+# or passing a token directly
+arete upload-sarif --file report.sarif --repo owner/repo --commit <COMMIT_SHA> --git-ref refs/heads/main --token $GITHUB_TOKEN
+```
+
+GitHub Actions example (upload SARIF as a post-job step):
+
+```yaml
+name: arete-scan
+on: [pull_request]
+
+jobs:
+  arete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run arete scan
+        run: |
+          cargo run -- scan --target https://example.com --mock --format sarif --output report.sarif
+      - name: Upload SARIF to GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo run -- upload-sarif --file report.sarif --repo ${{ github.repository }} --commit ${{ github.sha }} --git-ref ${{ github.ref }}
+```
+
+Notes:
+
+- SARIF files and baseline files are typically generated artifacts and should be ignored in the repository. `.gitignore` already includes `*.sarif` and `baseline.json`.
+- The `upload-sarif` helper posts to the GitHub Code Scanning SARIF endpoint and requires repository access.

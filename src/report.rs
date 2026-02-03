@@ -9,6 +9,41 @@ pub enum SeverityLevel {
     Critical = 3,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+pub enum VulnerabilityType {
+    SqlInjection,
+    CrossSiteScripting,
+    CsrfToken,
+    AuthenticationBypass,
+    SecurityMisconfiguration,
+    SensitiveDataExposure,
+    XmlExternalEntity,
+    BrokenAccessControl,
+    UsingComponentsWithKnownVulnerabilities,
+    InsufficientLogging,
+    Other,
+}
+
+impl VulnerabilityType {
+    #[allow(dead_code)]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            VulnerabilityType::SqlInjection => "SQL Injection",
+            VulnerabilityType::CrossSiteScripting => "Cross-Site Scripting (XSS)",
+            VulnerabilityType::CsrfToken => "CSRF Token",
+            VulnerabilityType::AuthenticationBypass => "Authentication Bypass",
+            VulnerabilityType::SecurityMisconfiguration => "Security Misconfiguration",
+            VulnerabilityType::SensitiveDataExposure => "Sensitive Data Exposure",
+            VulnerabilityType::XmlExternalEntity => "XML External Entity (XXE)",
+            VulnerabilityType::BrokenAccessControl => "Broken Access Control",
+            VulnerabilityType::UsingComponentsWithKnownVulnerabilities => "Using Components with Known Vulnerabilities",
+            VulnerabilityType::InsufficientLogging => "Insufficient Logging & Monitoring",
+            VulnerabilityType::Other => "Other",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     pub pluginid: String,
@@ -22,6 +57,10 @@ pub struct Alert {
     pub url: String,
     pub description: Option<String>,
     pub instances: Vec<AlertInstance>,
+    #[serde(default)]
+    pub cvss_score: f32,
+    #[serde(default)]
+    pub vulnerability_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +175,46 @@ impl ScanReport {
         )
     }
 
+    /// Calculate average CVSS score across all alerts
+    pub fn average_cvss_score(&self) -> f32 {
+        if self.alerts.is_empty() {
+            return 0.0;
+        }
+        let sum: f32 = self.alerts.iter().map(|a| a.cvss_score).sum();
+        sum / self.alerts.len() as f32
+    }
+
+    /// Get maximum CVSS score
+    pub fn max_cvss_score(&self) -> f32 {
+        self.alerts
+            .iter()
+            .map(|a| a.cvss_score)
+            .fold(0.0, f32::max)
+    }
+
+    /// Count vulnerabilities by type
+    pub fn vulnerabilities_by_type(&self) -> std::collections::HashMap<String, usize> {
+        let mut map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for alert in &self.alerts {
+            *map.entry(alert.vulnerability_type.clone())
+                .or_insert(0) += 1;
+        }
+        map
+    }
+
+    /// Get risk breakdown (count by severity and CVSS)
+    pub fn risk_breakdown(&self) -> RiskBreakdown {
+        RiskBreakdown {
+            critical_count: self.critical_count(),
+            high_count: self.high_count(),
+            medium_count: self.medium_count(),
+            low_count: self.low_count(),
+            average_cvss: self.average_cvss_score(),
+            max_cvss: self.max_cvss_score(),
+            vulnerabilities_by_type: self.vulnerabilities_by_type(),
+        }
+    }
+
     pub fn save<P: AsRef<Path>>(&self, path: P, format: &str) -> anyhow::Result<()> {
         let content = match format {
             "json" => serde_json::to_string_pretty(&self)?,
@@ -147,4 +226,15 @@ impl ScanReport {
         std::fs::write(path, content)?;
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RiskBreakdown {
+    pub critical_count: usize,
+    pub high_count: usize,
+    pub medium_count: usize,
+    pub low_count: usize,
+    pub average_cvss: f32,
+    pub max_cvss: f32,
+    pub vulnerabilities_by_type: std::collections::HashMap<String, usize>,
 }

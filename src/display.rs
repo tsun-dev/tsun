@@ -108,6 +108,55 @@ impl Display {
             println!("  {} {}", "Low:".dimmed(), low_str.cyan().bold());
         }
     }
+
+    /// Print CVSS metrics
+    pub fn cvss_metrics(average_cvss: f32, max_cvss: f32) {
+        Self::section_header("CVSS Metrics");
+        
+        let avg_color = if average_cvss >= 7.0 {
+            colored::Color::Red
+        } else if average_cvss >= 4.0 {
+            colored::Color::Yellow
+        } else {
+            colored::Color::Green
+        };
+
+        let max_color = if max_cvss >= 9.0 {
+            colored::Color::Red
+        } else if max_cvss >= 7.0 {
+            colored::Color::TrueColor { r: 255, g: 107, b: 107 }
+        } else if max_cvss >= 4.0 {
+            colored::Color::Yellow
+        } else {
+            colored::Color::Green
+        };
+
+        println!(
+            "  {} {:.1}",
+            "Average CVSS:".dimmed(),
+            format!("{:.1}", average_cvss).color(avg_color).bold()
+        );
+        println!(
+            "  {} {:.1}",
+            "Maximum CVSS:".dimmed(),
+            format!("{:.1}", max_cvss).color(max_color).bold()
+        );
+    }
+
+    /// Print vulnerabilities breakdown by type
+    pub fn vulnerabilities_by_type(breakdown: &std::collections::HashMap<String, usize>) {
+        if breakdown.is_empty() {
+            return;
+        }
+
+        Self::section_header("Vulnerabilities by Type");
+        let mut sorted: Vec<_> = breakdown.iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(a.1));
+        
+        for (vuln_type, count) in sorted {
+            println!("  {} {}", vuln_type.dimmed(), count.to_string().bold());
+        }
+    }
 }
 
 #[cfg(test)]

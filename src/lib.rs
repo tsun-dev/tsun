@@ -178,6 +178,62 @@ mod tests {
         );
         assert!(crate::report::ScanReport::parse_severity("invalid").is_err());
     }
+
+    #[tokio::test]
+    async fn test_cvss_metrics() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let avg_cvss = report.average_cvss_score();
+        let max_cvss = report.max_cvss_score();
+
+        // Verify CVSS scores are reasonable
+        assert!(avg_cvss >= 0.0 && avg_cvss <= 10.0);
+        assert!(max_cvss >= 0.0 && max_cvss <= 10.0);
+        assert!(max_cvss >= avg_cvss);
+
+        println!(
+            "CVSS Metrics - Average: {:.1}, Max: {:.1}",
+            avg_cvss, max_cvss
+        );
+    }
+
+    #[tokio::test]
+    async fn test_vulnerabilities_by_type() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let breakdown = report.risk_breakdown();
+        let by_type = &breakdown.vulnerabilities_by_type;
+
+        // Verify we have vulnerability types
+        assert!(!by_type.is_empty());
+        assert!(by_type.contains_key("Security Misconfiguration")
+            || by_type.contains_key("Cross-Site Scripting (XSS)")
+            || by_type.contains_key("Sensitive Data Exposure"));
+
+        println!("Vulnerability Types: {:?}", by_type);
+    }
 }
 
 pub mod config;

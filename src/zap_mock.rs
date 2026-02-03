@@ -63,6 +63,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("Set-Cookie: session_id=abc123".to_string()),
                 },
             ],
+            cvss_score: 7.5,
+            vulnerability_type: "Security Misconfiguration".to_string(),
         },
         Alert {
             pluginid: "10015".to_string(),
@@ -83,6 +85,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("script src=\"https://www.google.com/recaptcha/api.js\"".to_string()),
                 },
             ],
+            cvss_score: 0.0,
+            vulnerability_type: "Other".to_string(),
         },
         Alert {
             pluginid: "90018".to_string(),
@@ -103,6 +107,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 8.1,
+            vulnerability_type: "Cross-Site Scripting (XSS)".to_string(),
         },
         Alert {
             pluginid: "10021".to_string(),
@@ -123,6 +129,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 7.4,
+            vulnerability_type: "Security Misconfiguration".to_string(),
         },
         Alert {
             pluginid: "10035".to_string(),
@@ -143,6 +151,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 5.9,
+            vulnerability_type: "Sensitive Data Exposure".to_string(),
         },
         Alert {
             pluginid: "10037".to_string(),
@@ -163,6 +173,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("Server: Apache/2.4.41 (Ubuntu)".to_string()),
                 },
             ],
+            cvss_score: 5.3,
+            vulnerability_type: "Sensitive Data Exposure".to_string(),
         },
     ]
 }

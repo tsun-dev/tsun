@@ -171,6 +171,13 @@ async fn run_scan(
         report.low_count(),
     );
 
+    // Display CVSS metrics if there are alerts
+    if report.vulnerability_count() > 0 {
+        Display::cvss_metrics(report.average_cvss_score(), report.max_cvss_score());
+        let breakdown = report.risk_breakdown();
+        Display::vulnerabilities_by_type(&breakdown.vulnerabilities_by_type);
+    }
+
     if let Some(output_path) = output {
         report.save(&output_path, &format)?;
         Display::success(&format!("Report saved to: {}", output_path.display()));

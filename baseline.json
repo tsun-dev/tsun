@@ -1,0 +1,138 @@
+{
+  "target": "https://example.com",
+  "timestamp": "2026-02-02T22:04:25.779054163-06:00",
+  "alerts": [
+    {
+      "pluginid": "10010",
+      "alertRef": "10010",
+      "alert": "Cookie without Secure Flag",
+      "name": "Cookie without Secure Flag",
+      "riskcode": "2",
+      "confidence": "2",
+      "riskdesc": "High",
+      "url": "https://example.com/login",
+      "description": "A cookie has been set without the Secure flag. The Secure flag is an option that can be set by the application server when sending a new cookie to the user within an HTTP Secure (HTTPS) response.",
+      "instances": [
+        {
+          "uri": "https://example.com/login",
+          "method": "POST",
+          "param": "session_id",
+          "attack": null,
+          "evidence": "Set-Cookie: session_id=abc123"
+        }
+      ],
+      "cvss_score": 7.5,
+      "vulnerability_type": "Security Misconfiguration"
+    },
+    {
+      "pluginid": "10015",
+      "alertRef": "10015",
+      "alert": "Re-CAPTCHA Detected",
+      "name": "Re-CAPTCHA Detected",
+      "riskcode": "0",
+      "confidence": "1",
+      "riskdesc": "Informational",
+      "url": "https://example.com/signup",
+      "description": "A Re-CAPTCHA was detected",
+      "instances": [
+        {
+          "uri": "https://example.com/signup",
+          "method": "GET",
+          "param": null,
+          "attack": null,
+          "evidence": "script src=\"https://www.google.com/recaptcha/api.js\""
+        }
+      ],
+      "cvss_score": 0.0,
+      "vulnerability_type": "Other"
+    },
+    {
+      "pluginid": "90018",
+      "alertRef": "90018",
+      "alert": "Header Injection",
+      "name": "Header Injection",
+      "riskcode": "2",
+      "confidence": "1",
+      "riskdesc": "High",
+      "url": "https://example.com/search",
+      "description": "The application may be vulnerable to Header Injection attacks.",
+      "instances": [
+        {
+          "uri": "https://example.com/search?q=test",
+          "method": "GET",
+          "param": "q",
+          "attack": "test%0d%0aSet-Cookie:%20admin=true",
+          "evidence": null
+        }
+      ],
+      "cvss_score": 8.1,
+      "vulnerability_type": "Cross-Site Scripting (XSS)"
+    },
+    {
+      "pluginid": "10021",
+      "alertRef": "10021",
+      "alert": "X-Frame-Options Header Missing",
+      "name": "X-Frame-Options Header Missing",
+      "riskcode": "2",
+      "confidence": "2",
+      "riskdesc": "High",
+      "url": "https://example.com",
+      "description": "The response does not include an X-Frame-Options header.",
+      "instances": [
+        {
+          "uri": "https://example.com",
+          "method": "GET",
+          "param": null,
+          "attack": null,
+          "evidence": null
+        }
+      ],
+      "cvss_score": 7.4,
+      "vulnerability_type": "Security Misconfiguration"
+    },
+    {
+      "pluginid": "10035",
+      "alertRef": "10035",
+      "alert": "Strict-Transport-Security Header Missing",
+      "name": "Strict-Transport-Security Header Missing",
+      "riskcode": "1",
+      "confidence": "2",
+      "riskdesc": "Medium",
+      "url": "https://example.com",
+      "description": "HTTP Strict-Transport-Security (HSTS) header is missing.",
+      "instances": [
+        {
+          "uri": "https://example.com",
+          "method": "GET",
+          "param": null,
+          "attack": null,
+          "evidence": null
+        }
+      ],
+      "cvss_score": 5.9,
+      "vulnerability_type": "Sensitive Data Exposure"
+    },
+    {
+      "pluginid": "10037",
+      "alertRef": "10037",
+      "alert": "Server Leaks Version Information",
+      "name": "Server Leaks Version Information",
+      "riskcode": "1",
+      "confidence": "1",
+      "riskdesc": "Medium",
+      "url": "https://example.com",
+      "description": "The server software version is exposed via HTTP headers.",
+      "instances": [
+        {
+          "uri": "https://example.com",
+          "method": "GET",
+          "param": null,
+          "attack": null,
+          "evidence": "Server: Apache/2.4.41 (Ubuntu)"
+        }
+      ],
+      "cvss_score": 5.3,
+      "vulnerability_type": "Sensitive Data Exposure"
+    }
+  ]
+}

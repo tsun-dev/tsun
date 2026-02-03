@@ -157,6 +157,72 @@ impl Display {
             println!("  {} {}", vuln_type.dimmed(), count.to_string().bold());
         }
     }
+
+    /// Print report comparison results
+    pub fn comparison_report(comparison: &crate::report::ReportComparison) {
+        Self::section_header("Comparison Report");
+
+        let status_text = if comparison.is_improvement {
+            "✓ IMPROVED".green()
+        } else if comparison.total_delta == 0 && comparison.average_cvss_delta == 0.0 {
+            "= UNCHANGED".cyan()
+        } else {
+            "✗ REGRESSED".red()
+        };
+
+        println!("  Status: {}", status_text.bold());
+
+        // Summary metrics
+        println!(
+            "  Total Issues: {} {}",
+            comparison.unchanged_vulnerabilities.len(),
+            format_delta(comparison.total_delta)
+        );
+        println!("  New Vulnerabilities: {}", comparison.new_vulnerabilities.len().to_string().red());
+        println!("  Fixed Vulnerabilities: {}", comparison.fixed_vulnerabilities.len().to_string().green());
+
+        // Severity deltas
+        println!();
+        println!("  Severity Changes:");
+        if comparison.critical_delta != 0 {
+            println!("    Critical: {}", format_delta(comparison.critical_delta).red());
+        }
+        if comparison.high_delta != 0 {
+            println!("    High: {}", format_delta(comparison.high_delta).red());
+        }
+        if comparison.medium_delta != 0 {
+            println!("    Medium: {}", format_delta(comparison.medium_delta).yellow());
+        }
+        if comparison.low_delta != 0 {
+            println!("    Low: {}", format_delta(comparison.low_delta).cyan());
+        }
+
+        // CVSS change
+        if comparison.average_cvss_delta != 0.0 {
+            let cvss_color = if comparison.average_cvss_delta < 0.0 {
+                colored::Color::Green
+            } else {
+                colored::Color::Red
+            };
+            println!(
+                "  Avg CVSS Delta: {}",
+                format!("{:+.1}", comparison.average_cvss_delta)
+                    .color(cvss_color)
+                    .bold()
+            );
+        }
+    }
+}
+
+/// Format delta value with sign and color
+fn format_delta(delta: i32) -> colored::ColoredString {
+    if delta > 0 {
+        format!("+{}", delta).red().bold()
+    } else if delta < 0 {
+        delta.to_string().green().bold()
+    } else {
+        "0".cyan()
+    }
 }
 
 #[cfg(test)]

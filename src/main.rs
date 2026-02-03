@@ -54,6 +54,10 @@ enum Commands {
         /// Use mock ZAP client for testing
         #[arg(long)]
         mock: bool,
+
+        /// Path to baseline report for comparison
+        #[arg(long)]
+        baseline: Option<PathBuf>,
     },
     /// Generate a configuration template
     Init {
@@ -90,8 +94,9 @@ async fn main() -> anyhow::Result<()> {
             verbose,
             min_severity,
             mock,
+            baseline,
         } => {
-            run_scan(target, config, format, output, verbose, min_severity, mock).await?;
+            run_scan(target, config, format, output, verbose, min_severity, mock, baseline).await?;
         }
         Commands::Init { config } => {
             run_init(config)?;
@@ -112,6 +117,7 @@ async fn run_scan(
     verbose: bool,
     min_severity: String,
     use_mock: bool,
+    baseline_path: Option<PathBuf>,
 ) -> anyhow::Result<()> {
     // Validate inputs
     validation::validate_url(&target)
@@ -176,6 +182,19 @@ async fn run_scan(
         Display::cvss_metrics(report.average_cvss_score(), report.max_cvss_score());
         let breakdown = report.risk_breakdown();
         Display::vulnerabilities_by_type(&breakdown.vulnerabilities_by_type);
+    }
+
+    // Perform comparison if baseline is provided
+    if let Some(baseline_file) = baseline_path {
+        match report::ScanReport::load_from_file(&baseline_file) {
+            Ok(baseline_report) => {
+                let comparison = report::ReportComparison::new(&baseline_report, &report);
+                Display::comparison_report(&comparison);
+            }
+            Err(e) => {
+                Display::warning(&format!("Failed to load baseline report: {}", e));
+            }
+        }
     }
 
     if let Some(output_path) = output {

@@ -234,6 +234,59 @@ mod tests {
 
         println!("Vulnerability Types: {:?}", by_type);
     }
+
+    #[tokio::test]
+    async fn test_report_comparison_improvement() {
+        let _config = ScanConfig::default();
+
+        // Baseline scan with 6 alerts
+        let baseline_scanner = Scanner::new(
+            "https://example.com".to_string(),
+            _config.clone(),
+            true,
+        )
+        .expect("Failed to create baseline scanner");
+
+        let baseline_report = baseline_scanner
+            .run()
+            .await
+            .expect("Failed to run baseline scan");
+
+        // Current scan with fewer alerts (filtered high severity = 3 alerts)
+        let mut current_report = baseline_report.clone();
+        current_report.filter_by_severity("high").expect("Failed to filter");
+
+        let comparison = crate::report::ReportComparison::new(&baseline_report, &current_report);
+
+        // Should show improvement
+        assert!(comparison.is_improvement);
+        assert!(comparison.total_delta < 0);
+        assert_eq!(comparison.new_vulnerabilities.len(), 0);
+        assert!(comparison.fixed_vulnerabilities.len() > 0);
+
+        println!(
+            "Comparison: {} fixed, {} new",
+            comparison.fixed_vulnerabilities.len(),
+            comparison.new_vulnerabilities.len()
+        );
+    }
+
+    #[test]
+    fn test_report_load_from_json() {
+        let config = ScanConfig::default();
+        let report = crate::report::ScanReport {
+            target: "https://example.com".to_string(),
+            timestamp: chrono::Local::now().to_rfc3339(),
+            alerts: vec![],
+        };
+
+        // Save and load
+        let json_str = serde_json::to_string_pretty(&report).expect("Failed to serialize");
+        let loaded: crate::report::ScanReport =
+            serde_json::from_str(&json_str).expect("Failed to deserialize");
+
+        assert_eq!(loaded.target, report.target);
+    }
 }
 
 pub mod config;

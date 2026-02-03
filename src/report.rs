@@ -226,6 +226,26 @@ impl ScanReport {
         std::fs::write(path, content)?;
         Ok(())
     }
+
+    /// Load a report from a JSON or YAML file
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let content = std::fs::read_to_string(&path)?;
+        let path_str = path.as_ref().to_string_lossy();
+
+        // Try to parse as JSON first, then YAML
+        if path_str.ends_with(".json") {
+            let report = serde_json::from_str(&content)?;
+            Ok(report)
+        } else if path_str.ends_with(".yaml") || path_str.ends_with(".yml") {
+            let report = serde_yaml::from_str(&content)?;
+            Ok(report)
+        } else {
+            // Try JSON first, fallback to YAML
+            serde_json::from_str(&content)
+                .or_else(|_| serde_yaml::from_str(&content))
+                .map_err(|e| anyhow::anyhow!("Failed to parse report file: {}", e))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -237,4 +257,140 @@ pub struct RiskBreakdown {
     pub average_cvss: f32,
     pub max_cvss: f32,
     pub vulnerabilities_by_type: std::collections::HashMap<String, usize>,
+}
+/// Comparison between two scan reports
+#[derive(Debug, Clone, Serialize)]
+pub struct ReportComparison {
+    /// Vulnerabilities in the new report but not in baseline
+    pub new_vulnerabilities: Vec<Alert>,
+    /// Vulnerabilities in the baseline but not in the new report (fixed)
+    pub fixed_vulnerabilities: Vec<Alert>,
+    /// Vulnerabilities present in both reports
+    pub unchanged_vulnerabilities: Vec<Alert>,
+    /// Change in total count (positive = worse, negative = better)
+    pub total_delta: i32,
+    /// Change in critical count
+    pub critical_delta: i32,
+    /// Change in high count
+    pub high_delta: i32,
+    /// Change in medium count
+    pub medium_delta: i32,
+    /// Change in low count
+    pub low_delta: i32,
+    /// Change in average CVSS score
+    pub average_cvss_delta: f32,
+    /// Improvement status
+    pub is_improvement: bool,
+}
+
+impl ReportComparison {
+    /// Create a new comparison between baseline and current report
+    pub fn new(baseline: &ScanReport, current: &ScanReport) -> Self {
+        let mut new_vulns = Vec::new();
+        let mut fixed_vulns = Vec::new();
+        let mut unchanged_vulns = Vec::new();
+
+        for current_alert in &current.alerts {
+            if !baseline
+                .alerts
+                .iter()
+                .any(|a| Self::alerts_equal(a, current_alert))
+            {
+                new_vulns.push(current_alert.clone());
+            } else {
+                unchanged_vulns.push(current_alert.clone());
+            }
+        }
+
+        for baseline_alert in &baseline.alerts {
+            if !current
+                .alerts
+                .iter()
+                .any(|a| Self::alerts_equal(a, baseline_alert))
+            {
+                fixed_vulns.push(baseline_alert.clone());
+            }
+        }
+
+        let baseline_breakdown = baseline.risk_breakdown();
+        let current_breakdown = current.risk_breakdown();
+
+        let total_delta = current.alerts.len() as i32 - baseline.alerts.len() as i32;
+        let critical_delta = current_breakdown.critical_count as i32 - baseline_breakdown.critical_count as i32;
+        let high_delta = current_breakdown.high_count as i32 - baseline_breakdown.high_count as i32;
+        let medium_delta = current_breakdown.medium_count as i32 - baseline_breakdown.medium_count as i32;
+        let low_delta = current_breakdown.low_count as i32 - baseline_breakdown.low_count as i32;
+        let average_cvss_delta = current.average_cvss_score() - baseline.average_cvss_score();
+
+        let is_improvement =
+            total_delta < 0
+                || (total_delta == 0 && average_cvss_delta < 0.0)
+                || (total_delta == 0 && average_cvss_delta == 0.0 && fixed_vulns.len() > 0);
+
+        Self {
+            new_vulnerabilities: new_vulns,
+            fixed_vulnerabilities: fixed_vulns,
+            unchanged_vulnerabilities: unchanged_vulns,
+            total_delta,
+            critical_delta,
+            high_delta,
+            medium_delta,
+            low_delta,
+            average_cvss_delta,
+            is_improvement,
+        }
+    }
+
+    /// Check if two alerts represent the same vulnerability
+    fn alerts_equal(a: &Alert, b: &Alert) -> bool {
+        a.pluginid == b.pluginid
+            && a.alert == b.alert
+            && a.url == b.url
+            && a.riskcode == b.riskcode
+    }
+
+    /// Get summary of comparison
+    pub fn summary(&self) -> String {
+        let status = if self.is_improvement {
+            "✓ IMPROVED".to_string()
+        } else if self.total_delta == 0 && self.average_cvss_delta == 0.0 {
+            "= UNCHANGED".to_string()
+        } else {
+            "✗ REGRESSED".to_string()
+        };
+
+        format!(
+            "Comparison Summary: {}\n  Total: {} ({})\n  New: {} | Fixed: {}\n  Critical: {} | High: {} | Medium: {} | Low: {}\n  Avg CVSS: {:+.1}",
+            status,
+            self.unchanged_vulnerabilities.len(),
+            if self.total_delta > 0 {
+                format!("+{}", self.total_delta)
+            } else {
+                self.total_delta.to_string()
+            },
+            self.new_vulnerabilities.len(),
+            self.fixed_vulnerabilities.len(),
+            if self.critical_delta > 0 {
+                format!("+{}", self.critical_delta)
+            } else {
+                self.critical_delta.to_string()
+            },
+            if self.high_delta > 0 {
+                format!("+{}", self.high_delta)
+            } else {
+                self.high_delta.to_string()
+            },
+            if self.medium_delta > 0 {
+                format!("+{}", self.medium_delta)
+            } else {
+                self.medium_delta.to_string()
+            },
+            if self.low_delta > 0 {
+                format!("+{}", self.low_delta)
+            } else {
+                self.low_delta.to_string()
+            },
+            self.average_cvss_delta,
+        )
+    }
 }

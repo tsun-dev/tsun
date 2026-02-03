@@ -64,7 +64,7 @@ enum Commands {
     /// Check ZAP server connectivity
     Status {
         /// ZAP server host
-        #[arg(short, long, default_value = "http://localhost:8080")]
+        #[arg(long, default_value = "http://localhost:8080")]
         host: String,
     },
 }

@@ -220,7 +220,8 @@ impl ScanReport {
             "json" => serde_json::to_string_pretty(&self)?,
             "yaml" => serde_yaml::to_string(&self)?,
             "html" => crate::html::generate_html_report(self),
-            _ => anyhow::bail!("Unsupported format: {}. Supported formats: json, yaml, html", format),
+            "sarif" => crate::sarif::generate_sarif_report(self),
+            _ => anyhow::bail!("Unsupported format: {}. Supported formats: json, yaml, html, sarif", format),
         };
 
         std::fs::write(path, content)?;

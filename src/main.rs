@@ -9,10 +9,12 @@ mod report;
 mod html;
 mod validation;
 mod display;
+mod sarif;
 
 use scanner::Scanner;
 use config::ScanConfig;
 use display::Display;
+use reqwest;
 
 #[derive(Parser)]
 #[command(name = "arete")]
@@ -58,6 +60,10 @@ enum Commands {
         /// Path to baseline report for comparison
         #[arg(long)]
         baseline: Option<PathBuf>,
+
+        /// Exit with code 1 if findings at or above this severity are found
+        #[arg(long, default_value = "none")]
+        exit_on_severity: String,
     },
     /// Generate a configuration template
     Init {
@@ -70,6 +76,28 @@ enum Commands {
         /// ZAP server host
         #[arg(long, default_value = "http://localhost:8080")]
         host: String,
+    },
+    /// Upload a SARIF report to GitHub Code Scanning
+    UploadSarif {
+        /// Path to SARIF file
+        #[arg(short, long)]
+        file: PathBuf,
+
+        /// GitHub repository in form owner/repo
+        #[arg(long)]
+        repo: Option<String>,
+
+        /// Commit SHA associated with the SARIF
+        #[arg(long)]
+        commit: Option<String>,
+
+        /// Git ref (e.g. refs/heads/main)
+        #[arg(long)]
+        git_ref: Option<String>,
+
+        /// GitHub token (or set GITHUB_TOKEN env)
+        #[arg(long)]
+        token: Option<String>,
     },
 }
 
@@ -95,14 +123,21 @@ async fn main() -> anyhow::Result<()> {
             min_severity,
             mock,
             baseline,
+            exit_on_severity,
         } => {
-            run_scan(target, config, format, output, verbose, min_severity, mock, baseline).await?;
+            let exit_code = run_scan(target, config, format, output, verbose, min_severity, mock, baseline, exit_on_severity).await?;
+            if exit_code != 0 {
+                std::process::exit(exit_code);
+            }
         }
         Commands::Init { config } => {
             run_init(config)?;
         }
         Commands::Status { host } => {
             run_status(host).await?;
+        }
+        Commands::UploadSarif { file, repo, commit, git_ref, token } => {
+            run_upload_sarif(file, repo, commit, git_ref, token).await?;
         }
     }
 
@@ -118,7 +153,8 @@ async fn run_scan(
     min_severity: String,
     use_mock: bool,
     baseline_path: Option<PathBuf>,
-) -> anyhow::Result<()> {
+    exit_on_severity: String,
+) -> anyhow::Result<i32> {
     // Validate inputs
     validation::validate_url(&target)
         .map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
@@ -204,7 +240,33 @@ async fn run_scan(
         println!("\n{}", report.summary());
     }
 
-    Ok(())
+    // Determine exit code based on exit_on_severity threshold
+    let exit_code = if exit_on_severity != "none" {
+        match report::ScanReport::parse_severity(&exit_on_severity) {
+            Ok(threshold) => {
+                if report.alerts.iter().any(|a| {
+                    let alert_severity = report::ScanReport::parse_severity(&a.riskcode).unwrap_or(report::SeverityLevel::Low);
+                    alert_severity >= threshold
+                }) {
+                    Display::error(&format!(
+                        "Scan failed: found vulnerabilities at or above {} severity",
+                        exit_on_severity
+                    ));
+                    1
+                } else {
+                    0
+                }
+            }
+            Err(_) => {
+                Display::warning(&format!("Invalid exit_on_severity value: {}", exit_on_severity));
+                0
+            }
+        }
+    } else {
+        0
+    };
+
+    Ok(exit_code)
 }
 
 fn run_init(config_path: String) -> anyhow::Result<()> {
@@ -231,4 +293,60 @@ async fn run_status(host: String) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+async fn run_upload_sarif(
+    file: PathBuf,
+    repo: Option<String>,
+    commit: Option<String>,
+    git_ref: Option<String>,
+    token: Option<String>,
+) -> anyhow::Result<()> {
+    // Basic validation
+    if repo.is_none() {
+        anyhow::bail!("--repo is required (owner/repo)");
+    }
+    let repo = repo.unwrap();
+
+    // Read SARIF file
+    let content = std::fs::read_to_string(&file)
+        .map_err(|e| anyhow::anyhow!("Failed to read SARIF file {}: {}", file.display(), e))?;
+
+    // Token from argument or env
+    let gh_token = token.or_else(|| std::env::var("GITHUB_TOKEN").ok());
+    if gh_token.is_none() {
+        anyhow::bail!("GitHub token required: pass --token or set GITHUB_TOKEN env var");
+    }
+    let gh_token = gh_token.unwrap();
+
+    let commit_sha = commit.unwrap_or_else(|| "".to_string());
+    let ref_field = git_ref.unwrap_or_else(|| "refs/heads/main".to_string());
+
+    let url = format!("https://api.github.com/repos/{}/code-scanning/sarifs", repo);
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "commit_sha": commit_sha,
+        "ref": ref_field,
+        "sarif": content,
+        "tool_name": "arete",
+    });
+
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", gh_token))
+        .header("User-Agent", "arete")
+        .header("Accept", "application/vnd.github+json")
+        .json(&body)
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        Display::success(&format!("SARIF uploaded successfully to {}", repo));
+        Ok(())
+    } else {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("SARIF upload failed: {} - {}", status, text);
+    }
 }

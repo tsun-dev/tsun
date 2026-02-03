@@ -49,9 +49,9 @@ pub fn validate_config_file<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
 /// Validate report format
 pub fn validate_format(format: &str) -> anyhow::Result<()> {
     match format {
-        "json" | "yaml" | "html" => Ok(()),
+        "json" | "yaml" | "html" | "sarif" => Ok(()),
         _ => anyhow::bail!(
-            "Invalid format: {}. Supported: json, yaml, html",
+            "Invalid format: {}. Supported: json, yaml, html, sarif",
             format
         ),
     }

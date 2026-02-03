@@ -297,3 +297,4 @@ pub mod zap_mock;
 pub mod html;
 pub mod validation;
 pub mod display;
+pub mod sarif;

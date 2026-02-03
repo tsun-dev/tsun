@@ -1,11 +1,12 @@
 # arete
 
-A security scanning tool powered by OWASP ZAP. Designed as a StackHawk competitor for continuous security scanning.
+A security scanning tool powered by OWASP ZAP for continuous application security testing.
 
 ## Features
 
 - **OWASP ZAP Integration**: Leverages OWASP ZAP for comprehensive security scanning
 - **Mock Mode**: Built-in test mode for development and CI/CD without a ZAP server
+- **Severity Filtering**: Reduce noise with `--min-severity` (critical, high, medium, low)
 - **Multiple Report Formats**: Export results as **HTML** (with beautiful styling), **JSON**, or **YAML**
 - **CLI Tool**: Easy-to-use command-line interface for running security scans
 - **Flexible Configuration**: YAML-based configuration for customizing scan policies
@@ -28,6 +29,9 @@ arete scan --target https://example.com
 
 # Mock scan (no ZAP server needed - perfect for testing)
 arete scan --target https://example.com --mock
+
+# Filter by minimum severity level
+arete scan --target https://example.com --mock --min-severity high
 
 # With custom configuration
 arete scan --target https://example.com --config arete.yaml

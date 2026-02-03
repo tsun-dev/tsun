@@ -28,5 +28,6 @@ dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 urlencoding = "2.1"
 maud = "0.26"
+url = "2.5"
 
 [dev-dependencies]

@@ -186,3 +186,4 @@ pub mod scanner;
 pub mod zap;
 pub mod zap_mock;
 pub mod html;
+pub mod validation;

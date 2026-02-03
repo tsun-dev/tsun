@@ -8,6 +8,7 @@ mod config;
 mod scanner;
 mod report;
 mod html;
+mod validation;
 
 use scanner::Scanner;
 use config::ScanConfig;
@@ -111,6 +112,23 @@ async fn run_scan(
     min_severity: String,
     use_mock: bool,
 ) -> anyhow::Result<()> {
+    // Validate inputs
+    validation::validate_url(&target)
+        .map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
+    
+    validation::validate_format(&format)
+        .map_err(|e| anyhow::anyhow!("Invalid format: {}", e))?;
+
+    if let Some(ref config_file) = config_path {
+        validation::validate_config_file(config_file)
+            .map_err(|e| anyhow::anyhow!("Invalid config file: {}", e))?;
+    }
+
+    if let Some(ref output_file) = output {
+        validation::validate_output_path(output_file)
+            .map_err(|e| anyhow::anyhow!("Invalid output path: {}", e))?;
+    }
+
     println!("{}", "Initializing security scan...".blue().bold());
 
     let config = if let Some(path) = config_path {

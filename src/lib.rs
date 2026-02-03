@@ -91,6 +91,93 @@ mod tests {
         assert!(html.contains("<table"));
         assert!(html.contains("Detailed Findings"));
     }
+
+    #[tokio::test]
+    async fn test_severity_filtering_high() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let mut report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let original_count = report.vulnerability_count();
+        report.filter_by_severity("high").expect("Filter failed");
+        
+        // Should only have high severity issues (excludes medium/low)
+        assert!(report.vulnerability_count() < original_count);
+        assert!(report.high_count() > 0);
+        assert_eq!(report.medium_count(), 0);
+        assert_eq!(report.low_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_severity_filtering_medium() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let mut report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let original_count = report.vulnerability_count();
+        report.filter_by_severity("medium").expect("Filter failed");
+        
+        // Should have medium and high (excludes low)
+        assert!(report.vulnerability_count() < original_count);
+        assert_eq!(report.low_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_severity_filtering_low() {
+        let config = ScanConfig::default();
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            config,
+            true, // use_mock
+        )
+        .expect("Failed to create scanner");
+
+        let mut report: crate::report::ScanReport = scanner
+            .run()
+            .await
+            .expect("Failed to run mock scan");
+
+        let original_count = report.vulnerability_count();
+        report.filter_by_severity("low").expect("Filter failed");
+        
+        // Should have all alerts (nothing filtered)
+        assert_eq!(report.vulnerability_count(), original_count);
+    }
+
+    #[test]
+    fn test_parse_severity() {
+        assert_eq!(
+            crate::report::ScanReport::parse_severity("high").unwrap(),
+            crate::report::SeverityLevel::High
+        );
+        assert_eq!(
+            crate::report::ScanReport::parse_severity("critical").unwrap(),
+            crate::report::SeverityLevel::Critical
+        );
+        assert_eq!(
+            crate::report::ScanReport::parse_severity("2").unwrap(),
+            crate::report::SeverityLevel::High
+        );
+        assert!(crate::report::ScanReport::parse_severity("invalid").is_err());
+    }
 }
 
 pub mod config;

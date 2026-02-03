@@ -41,6 +41,10 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
+        /// Minimum severity level to include (low, medium, high, critical)
+        #[arg(long, default_value = "low")]
+        min_severity: String,
+
         /// Verbose logging
         #[arg(short, long)]
         verbose: bool,
@@ -82,9 +86,10 @@ async fn main() -> anyhow::Result<()> {
             format,
             output,
             verbose,
+            min_severity,
             mock,
         } => {
-            run_scan(target, config, format, output, verbose, mock).await?;
+            run_scan(target, config, format, output, verbose, min_severity, mock).await?;
         }
         Commands::Init { config } => {
             run_init(config)?;
@@ -103,6 +108,7 @@ async fn run_scan(
     format: String,
     output: Option<PathBuf>,
     verbose: bool,
+    min_severity: String,
     use_mock: bool,
 ) -> anyhow::Result<()> {
     println!("{}", "Initializing security scan...".blue().bold());
@@ -126,7 +132,10 @@ async fn run_scan(
 
     println!("{}", format!("Scanning target: {}", scanner.target()).cyan());
     
-    let report = scanner.run().await?;
+    let mut report = scanner.run().await?;
+
+    // Apply severity filter
+    report.filter_by_severity(&min_severity)?;
 
     println!("{}", "Scan completed successfully".green().bold());
     println!("\n{}", format!("Vulnerabilities found: {}", report.vulnerability_count()).yellow());

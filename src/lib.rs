@@ -294,6 +294,7 @@ pub mod report;
 pub mod scanner;
 pub mod zap;
 pub mod zap_mock;
+pub mod zap_managed;
 pub mod html;
 pub mod validation;
 pub mod display;

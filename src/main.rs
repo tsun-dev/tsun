@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 mod zap;
 mod zap_mock;
+mod zap_managed;
 mod config;
 mod scanner;
 mod report;
@@ -15,7 +16,6 @@ use scanner::Scanner;
 use config::ScanConfig;
 use display::Display;
 use reqwest;
-use std::process::Stdio;
 
 #[derive(Parser)]
 #[command(name = "arete")]
@@ -54,9 +54,21 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
 
-        /// Use mock ZAP client for testing
+        /// Scan engine: mock or zap (default: mock)
+        #[arg(long, default_value = "mock")]
+        engine: String,
+
+        /// ZAP Docker image to use
+        #[arg(long, default_value = "owasp/zap2docker-stable")]
+        zap_image: String,
+
+        /// ZAP container host port (default: 8080)
+        #[arg(long, default_value_t = 8080)]
+        zap_port: u16,
+
+        /// Keep ZAP container running after scan (for debugging)
         #[arg(long)]
-        mock: bool,
+        keep_zap: bool,
 
         /// Path to baseline report for comparison
         #[arg(long)]
@@ -133,7 +145,10 @@ async fn main() -> anyhow::Result<()> {
             output,
             verbose,
             min_severity,
-            mock,
+            engine,
+            zap_image,
+            zap_port,
+            keep_zap,
             baseline,
             exit_on_severity,
             header,
@@ -147,7 +162,10 @@ async fn main() -> anyhow::Result<()> {
                 output,
                 verbose,
                 min_severity,
-                mock,
+                engine,
+                zap_image,
+                zap_port,
+                keep_zap,
                 baseline,
                 exit_on_severity,
                 header,
@@ -180,7 +198,10 @@ async fn run_scan(
     output: Option<PathBuf>,
     verbose: bool,
     min_severity: String,
-    use_mock: bool,
+    engine: String,
+    zap_image: String,
+    zap_port: u16,
+    keep_zap: bool,
     baseline_path: Option<PathBuf>,
     exit_on_severity: String,
     headers: Vec<String>,
@@ -204,15 +225,8 @@ async fn run_scan(
             .map_err(|e| anyhow::anyhow!("Invalid output path: {}", e))?;
     }
 
-    Display::section_header("Security Scan");
-    Display::status("Target", &target);
-    Display::status("Format", &format);
-    if let Some(ref path) = config_path {
-        Display::status("Config", path.to_string_lossy().as_ref());
-    }
-
-    let config = if let Some(path) = config_path {
-        ScanConfig::from_file(&path)?
+    let config = if let Some(ref path) = config_path {
+        ScanConfig::from_file(path)?
     } else {
         ScanConfig::default()
     };
@@ -262,7 +276,33 @@ async fn run_scan(
         effective_headers.push(("Cookie".to_string(), ch));
     }
 
-    let mut scanner = Scanner::new_with_headers(target, config, use_mock, effective_headers)?;
+    // Determine which scan engine to use
+    let use_mock = engine == "mock";
+    let _managed_zap; // Keep alive for duration of scan
+
+    let mut scanner = if use_mock {
+        Scanner::new_with_headers(target.clone(), config, true, effective_headers)?
+    } else if engine == "zap" {
+        // Start managed ZAP container
+        Display::section_header("Starting ZAP Engine");
+        let spinner = Display::spinner("Starting managed ZAP container...");
+        
+        let managed = zap_managed::start_managed_zap(zap_managed::ManagedZapOptions {
+            image: zap_image,
+            host_port: zap_port,
+            api_key: None, // For now, no API key required
+            keep: keep_zap,
+        })
+        .await?;
+        
+        spinner.finish_with_message("✓ ZAP container started");
+        Display::status("ZAP URL", &managed.zap_url);
+        
+        _managed_zap = managed;
+        Scanner::new_with_managed_zap(target.clone(), config, &_managed_zap, effective_headers)?
+    } else {
+        return Err(anyhow::anyhow!("Invalid engine: {}. Use 'mock' or 'zap'", engine));
+    };
 
     if verbose {
         Display::info("Verbose logging enabled");
@@ -271,15 +311,25 @@ async fn run_scan(
 
     if use_mock {
         Display::warning("Using mock ZAP client (test mode)");
+    } else {
+        Display::status("Engine", "ZAP (Docker managed)");
     }
 
     // Run scan with spinner
+    Display::section_header("Security Scan");
+    Display::status("Target", &target);
+    Display::status("Format", &format);
+    if let Some(ref path) = config_path {
+        Display::status("Config", path.to_string_lossy().as_ref());
+    }
+
     let spinner = Display::spinner("Executing security scan...");
     let mut report = scanner.run().await?;
     spinner.finish_with_message("✓ Scan completed");
 
-    // Apply severity filter
-    report.filter_by_severity(&min_severity)?;
+    // Apply severity filter - use "low" as default if not specified
+    let min_severity = if engine == "zap" { "low" } else { "low" };
+    report.filter_by_severity(min_severity)?;
 
     // Display results
     Display::vulnerability_summary(

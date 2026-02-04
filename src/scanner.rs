@@ -37,6 +37,26 @@ impl Scanner {
         })
     }
 
+    /// Create a scanner with managed ZAP (Docker-based)
+    pub fn new_with_managed_zap(
+        target: String,
+        config: ScanConfig,
+        managed: &crate::zap_managed::ZapManaged,
+        headers: Vec<(String, String)>,
+    ) -> Result<Self> {
+        let zap_client = Arc::new(crate::zap::ZapClient::new_with_headers(
+            &managed.zap_url,
+            &headers,
+        )?);
+
+        Ok(Self {
+            target,
+            config,
+            verbose: false,
+            zap_client,
+        })
+    }
+
     #[allow(dead_code)]
     pub fn target(&self) -> &str {
         &self.target

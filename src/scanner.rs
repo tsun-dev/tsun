@@ -9,6 +9,9 @@ pub struct Scanner {
     config: ScanConfig,
     verbose: bool,
     zap_client: Arc<crate::zap::ZapClient>,
+    max_urls: Option<u32>,
+    attack_strength: Option<String>,
+    alert_threshold: Option<String>,
 }
 
 impl Scanner {
@@ -35,6 +38,9 @@ impl Scanner {
             config,
             verbose: false,
             zap_client,
+            max_urls: None,
+            attack_strength: None,
+            alert_threshold: None,
         })
     }
 
@@ -55,6 +61,9 @@ impl Scanner {
             config,
             verbose: false,
             zap_client,
+            max_urls: None,
+            attack_strength: None,
+            alert_threshold: None,
         })
     }
 
@@ -67,13 +76,31 @@ impl Scanner {
         self.verbose = verbose;
     }
 
+    pub fn set_scan_params(
+        &mut self,
+        max_urls: Option<u32>,
+        attack_strength: Option<String>,
+        alert_threshold: Option<String>,
+    ) {
+        self.max_urls = max_urls;
+        self.attack_strength = attack_strength;
+        self.alert_threshold = alert_threshold;
+    }
+
     pub async fn run(&self) -> Result<ScanReport> {
         if self.verbose {
             tracing::info!("Starting security scan on target: {}", self.target);
         }
 
-        // Start new scan
-        let scan_id = self.zap_client.start_scan(&self.target).await?;
+        // Start new scan with parameters
+        let scan_id = self.zap_client
+            .start_scan(
+                &self.target,
+                self.max_urls,
+                self.attack_strength.as_deref(),
+                self.alert_threshold.as_deref(),
+            )
+            .await?;
 
         if self.verbose {
             tracing::info!("Scan ID: {}", scan_id);
@@ -81,7 +108,7 @@ impl Scanner {
 
         // Wait for scan to complete
         self.zap_client
-            .wait_for_scan(&scan_id, self.config.timeout.unwrap_or(300))
+            .wait_for_scan(&scan_id, self.config.timeout.unwrap_or(1800))
             .await?;
 
         if self.verbose {

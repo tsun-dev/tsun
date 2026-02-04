@@ -40,7 +40,7 @@ impl ScanConfig {
             },
             policies: vec!["default".to_string()],
             auth: None,
-            timeout: Some(300),
+            timeout: Some(1800),  // 30 minutes default for real ZAP scans
         }
     }
 
@@ -68,8 +68,8 @@ policies:
 #     username: user
 #     password: pass
 
-# Scan timeout in seconds
-timeout: 300
+# Scan timeout in seconds (default: 1800 = 30 minutes)
+timeout: 1800
 "#
         .to_string()
     }

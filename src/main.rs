@@ -90,6 +90,26 @@ enum Commands {
         /// Run a login command before scanning (useful to generate session cookies)
         #[arg(long)]
         login_command: Option<String>,
+
+        /// Scan timeout in seconds (default: 1800 = 30 minutes)
+        #[arg(long)]
+        timeout: Option<u64>,
+
+        /// Scan profile: ci (fast, 10-15min), deep (thorough, 60-120min), or custom
+        #[arg(long, default_value = "ci")]
+        profile: String,
+
+        /// Maximum URLs to spider (ci default: 200, deep: unlimited)
+        #[arg(long)]
+        max_urls: Option<u32>,
+
+        /// Attack strength: low, medium, high, insane (ci default: low, deep: medium)
+        #[arg(long)]
+        attack_strength: Option<String>,
+
+        /// Alert threshold: low, medium, high (ci default: medium, deep: low)
+        #[arg(long)]
+        alert_threshold: Option<String>,
     },
     /// Generate a configuration template
     Init {
@@ -156,6 +176,11 @@ async fn main() -> anyhow::Result<()> {
             header,
             cookies,
             login_command,
+            timeout,
+            profile,
+            max_urls,
+            attack_strength,
+            alert_threshold,
         } => {
             let exit_code = run_scan(
                 target,
@@ -173,6 +198,11 @@ async fn main() -> anyhow::Result<()> {
                 header,
                 cookies,
                 login_command,
+                timeout,
+                profile,
+                max_urls,
+                attack_strength,
+                alert_threshold,
             )
             .await?;
             if exit_code != 0 {
@@ -209,6 +239,11 @@ async fn run_scan(
     headers: Vec<String>,
     cookies: Option<PathBuf>,
     login_command: Option<String>,
+    timeout: Option<u64>,
+    profile: String,
+    max_urls: Option<u32>,
+    attack_strength: Option<String>,
+    alert_threshold: Option<String>,
 ) -> anyhow::Result<i32> {
     // Validate inputs
     validation::validate_url(&target)
@@ -227,11 +262,40 @@ async fn run_scan(
             .map_err(|e| anyhow::anyhow!("Invalid output path: {}", e))?;
     }
 
-    let config = if let Some(ref path) = config_path {
+    let mut config = if let Some(ref path) = config_path {
         ScanConfig::from_file(path)?
     } else {
         ScanConfig::default()
     };
+
+    // Apply scan profile defaults
+    let (profile_timeout, profile_max_urls, profile_attack, profile_threshold) = match profile.as_str() {
+        "ci" => (
+            Some(900),      // 15 minutes
+            Some(200),      // Limit crawling
+            "low".to_string(),
+            "medium".to_string(),
+        ),
+        "deep" => (
+            Some(7200),     // 2 hours
+            None,           // No URL limit
+            "medium".to_string(),
+            "low".to_string(),
+        ),
+        _ => (None, None, "low".to_string(), "medium".to_string()),
+    };
+
+    // CLI timeout overrides profile and config file
+    if let Some(t) = timeout {
+        config.timeout = Some(t);
+    } else if let Some(t) = profile_timeout {
+        config.timeout = Some(t);
+    }
+
+    // Store scan tuning parameters for ZAP
+    let scan_max_urls = max_urls.or(profile_max_urls);
+    let scan_attack_strength = attack_strength.unwrap_or(profile_attack);
+    let scan_alert_threshold = alert_threshold.unwrap_or(profile_threshold);
 
     // If a login command is provided, run it before scanning (user handles cookie persistence)
     if let Some(cmd) = login_command {
@@ -311,6 +375,13 @@ async fn run_scan(
         scanner.set_verbose(true);
     }
 
+    // Configure scan parameters from profile/CLI
+    scanner.set_scan_params(
+        scan_max_urls,
+        Some(scan_attack_strength.to_string()),
+        Some(scan_alert_threshold.to_string()),
+    );
+
     if use_mock {
         Display::warning("Using mock ZAP client (test mode)");
     } else {
@@ -320,6 +391,7 @@ async fn run_scan(
     // Run scan with spinner
     Display::section_header("Security Scan");
     Display::status("Target", &target);
+    Display::status("Profile", &profile);
     Display::status("Format", &format);
     if let Some(ref path) = config_path {
         Display::status("Config", path.to_string_lossy().as_ref());

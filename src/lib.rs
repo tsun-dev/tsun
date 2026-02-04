@@ -1,3 +1,19 @@
+//! Arete - Security scanning tool powered by OWASP ZAP
+//!
+//! This library provides the core scanning functionality for the Arete security scanner.
+
+pub mod auth;
+pub mod config;
+pub mod display;
+pub mod html;
+pub mod report;
+pub mod sarif;
+pub mod scanner;
+pub mod validation;
+pub mod zap;
+pub mod zap_managed;
+pub mod zap_mock;
+
 #[cfg(test)]
 mod tests {
     use crate::config::ScanConfig;
@@ -288,14 +304,3 @@ mod tests {
         assert_eq!(loaded.target, report.target);
     }
 }
-
-pub mod config;
-pub mod report;
-pub mod scanner;
-pub mod zap;
-pub mod zap_mock;
-pub mod zap_managed;
-pub mod html;
-pub mod validation;
-pub mod display;
-pub mod sarif;

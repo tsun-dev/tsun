@@ -28,10 +28,10 @@ pub struct Tool {
 pub struct Driver {
     pub name: String,
     pub version: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub informationUri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub semanticVersion: Option<String>,
+    #[serde(rename = "informationUri", skip_serializing_if = "Option::is_none")]
+    pub information_uri: Option<String>,
+    #[serde(rename = "semanticVersion", skip_serializing_if = "Option::is_none")]
+    pub semantic_version: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,8 +58,8 @@ pub struct Message {
 pub struct Location {
     #[serde(rename = "physicalLocation")]
     pub physical_location: PhysicalLocation,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logicalLocations: Option<Vec<LogicalLocation>>,
+    #[serde(rename = "logicalLocations", skip_serializing_if = "Option::is_none")]
+    pub logical_locations: Option<Vec<LogicalLocation>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -77,13 +77,14 @@ pub struct LogicalLocation {
 pub struct Rule {
     pub id: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shortDescription: Option<ShortDescription>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fullDescription: Option<FullDescription>,
-    pub defaultConfiguration: DefaultConfiguration,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub helpUri: Option<String>,
+    #[serde(rename = "shortDescription", skip_serializing_if = "Option::is_none")]
+    pub short_description: Option<ShortDescription>,
+    #[serde(rename = "fullDescription", skip_serializing_if = "Option::is_none")]
+    pub full_description: Option<FullDescription>,
+    #[serde(rename = "defaultConfiguration")]
+    pub default_configuration: DefaultConfiguration,
+    #[serde(rename = "helpUri", skip_serializing_if = "Option::is_none")]
+    pub help_uri: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -122,7 +123,7 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
                 physical_location: PhysicalLocation {
                     uri: alert.url.clone(),
                 },
-                logicalLocations: None,
+                logical_locations: None,
             }],
             fingerprints: None,
             properties: Some(create_alert_properties(alert)),
@@ -133,16 +134,16 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
             let rule = Rule {
                 id: rule_id.clone(),
                 name: alert.name.clone(),
-                shortDescription: Some(ShortDescription {
+                short_description: Some(ShortDescription {
                     text: alert.alert.clone(),
                 }),
-                fullDescription: alert.description.as_ref().map(|d| FullDescription {
+                full_description: alert.description.as_ref().map(|d| FullDescription {
                     text: d.clone(),
                 }),
-                defaultConfiguration: DefaultConfiguration {
+                default_configuration: DefaultConfiguration {
                     level: level.clone(),
                 },
-                helpUri: None,
+                help_uri: None,
             };
             rules_map.insert(rule_id, rule);
         }
@@ -158,8 +159,8 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
                 driver: Driver {
                     name: "arete".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    informationUri: Some("https://github.com/christavo/arete".to_string()),
-                    semanticVersion: Some(env!("CARGO_PKG_VERSION").to_string()),
+                    information_uri: Some("https://github.com/christavo/arete".to_string()),
+                    semantic_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 },
             },
             results,

@@ -13,6 +13,7 @@ pub struct Scanner {
 
 impl Scanner {
     /// Convenience constructor kept for compatibility (no headers)
+    #[allow(dead_code)]
     pub fn new(target: String, config: ScanConfig, use_mock: bool) -> Result<Self> {
         Self::new_with_headers(target, config, use_mock, Vec::new())
     }

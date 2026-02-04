@@ -351,6 +351,7 @@ impl ReportComparison {
     }
 
     /// Get summary of comparison
+    #[allow(dead_code)]
     pub fn summary(&self) -> String {
         let status = if self.is_improvement {
             "✓ IMPROVED".to_string()

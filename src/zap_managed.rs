@@ -11,6 +11,7 @@ use tracing::{info, warn};
 
 pub struct ZapManaged {
     pub zap_url: String,
+    #[allow(dead_code)]
     pub api_key: Option<String>,
     container_id: String,
     keep: bool,
@@ -68,22 +69,26 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
         "api.disablekey=true".to_string()
     };
 
-    let port_mapping = format!("{}:8080", opts.host_port);
+    let port_str = opts.host_port.to_string();
 
+    // Using host network mode so ZAP can access external URLs directly
+    // without proxy confusion between container and host localhost addresses
     let args = vec![
         "run",
         "-d",
-        "-p",
-        &port_mapping,
+        "--network",
+        "host",  // Use host network - ZAP will bind directly to host ports
         &opts.image,
         "zap.sh",
         "-daemon",
         "-host",
         "0.0.0.0",
         "-port",
-        "8080",
+        &port_str,  // Use the host port directly
         "-config",
         &key_cfg,
+        "-config",
+        "connection.timeoutInSecs=120",
     ];
 
     let out = Command::new("docker")
@@ -110,7 +115,7 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
 
     // Wait for ZAP to be ready (simple health check with retries)
     let zap_url = format!("http://127.0.0.1:{}", opts.host_port);
-    wait_for_zap_ready(&zap_url, 30).await?;
+    wait_for_zap_ready(&zap_url, 90).await?;
 
     Ok(ZapManaged {
         zap_url,

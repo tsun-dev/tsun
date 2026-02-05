@@ -250,7 +250,15 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
 
     // Wait for ZAP to be ready (simple health check with retries)
     let zap_url = format!("http://127.0.0.1:{}", host_port);
-    wait_for_zap_ready(&zap_url, 90).await?;
+    if let Err(e) = wait_for_zap_ready(&zap_url, 90).await {
+        warn!("ZAP failed to become ready, cleaning up container");
+        let _ = Command::new("docker")
+            .args(["rm", "-f", &container_id])
+            .output()
+            .await;
+        unregister_container(&container_id);
+        return Err(e);
+    }
 
     Ok(ZapManaged {
         zap_url,

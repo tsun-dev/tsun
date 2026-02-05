@@ -320,12 +320,38 @@ Findings will appear in:
 - **Security** tab → Code scanning alerts
 - Pull request diffs (inline annotations)
 
+## ZAP Container Cleanup
+
+arete automatically cleans up ZAP containers in all scenarios to prevent port conflicts:
+
+- **Normal completion**: Graceful 10-second shutdown, then force removal
+- **Ctrl+C / SIGINT**: Emergency cleanup, exit code 130
+- **Panic / crash**: Emergency cleanup before exiting
+- **Startup failure**: Immediate cleanup if ZAP container fails health checks
+
+Containers are tracked in a global registry and removed even if arete is interrupted. Use `--keep-zap` flag to keep the container running for debugging:
+
+```bash
+arete scan --target URL --engine zap --keep-zap
+# Container stays running after scan - useful for inspecting ZAP UI or logs
+docker ps  # See the running container
+docker logs <container_id>  # View ZAP logs
+docker rm -f <container_id>  # Manual cleanup when done
+```
+
+**Verify no orphaned containers:**
+```bash
+docker ps --filter ancestor=owasp/zap2docker-stable
+# Should show nothing after a completed scan
+```
+
 ## Troubleshooting
 
 **"Port 8080 already in use"**
 ```bash
-# Use different port
-arete scan --target URL --engine zap --zap-port 8081
+# arete automatically selects a free port
+arete scan --target URL --engine zap --zap-port 8080
+# Will use an ephemeral port if 8080 is busy
 ```
 
 **"Permission denied" (Docker)**

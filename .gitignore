@@ -14,3 +14,4 @@ report.xml
 *.sarif
 baseline.json
 *.pdf
+test_report.html

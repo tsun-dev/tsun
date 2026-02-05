@@ -156,6 +156,12 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
+    // Install signal handler for graceful shutdown
+    setup_signal_handlers();
+
+    // Install panic hook for emergency cleanup
+    setup_panic_hook();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -346,7 +352,7 @@ async fn run_scan(
 
     // Determine which scan engine to use
     let use_mock = engine == "mock";
-    let _managed_zap; // Keep alive for duration of scan
+    let mut _managed_zap: Option<zap_managed::ZapManaged> = None; // Keep alive for duration of scan
 
     let mut scanner = if use_mock {
         Scanner::new_with_headers(target.clone(), config, true, effective_headers)?
@@ -366,8 +372,10 @@ async fn run_scan(
         spinner.finish_with_message("✓ ZAP container started");
         Display::status("ZAP URL", &managed.zap_url);
 
-        _managed_zap = managed;
-        Scanner::new_with_managed_zap(target.clone(), config, &_managed_zap, effective_headers)?
+        let scanner =
+            Scanner::new_with_managed_zap(target.clone(), config, &managed, effective_headers)?;
+        _managed_zap = Some(managed);
+        scanner
     } else {
         return Err(anyhow::anyhow!(
             "Invalid engine: {}. Use 'mock' or 'zap'",
@@ -474,6 +482,14 @@ async fn run_scan(
         0
     };
 
+    // Explicitly cleanup ZAP container if we started one
+    if !use_mock {
+        if let Some(managed) = _managed_zap {
+            Display::info("Cleaning up ZAP container...");
+            managed.stop().await?;
+        }
+    }
+
     Ok(exit_code)
 }
 
@@ -557,6 +573,26 @@ async fn run_upload_sarif(
         let text = resp.text().await.unwrap_or_default();
         anyhow::bail!("SARIF upload failed: {} - {}", status, text);
     }
+}
+
+/// Setup signal handlers for graceful shutdown
+fn setup_signal_handlers() {
+    ctrlc::set_handler(move || {
+        eprintln!("\n⚠ Received interrupt signal, cleaning up ZAP containers...");
+        zap_managed::cleanup_all_containers();
+        std::process::exit(130); // Standard exit code for SIGINT
+    })
+    .expect("Error setting Ctrl-C handler");
+}
+
+/// Setup panic hook for emergency cleanup
+fn setup_panic_hook() {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        eprintln!("⚠ Panic detected, performing emergency cleanup...");
+        zap_managed::cleanup_all_containers();
+        original_hook(panic_info);
+    }));
 }
 
 #[cfg(test)]

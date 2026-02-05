@@ -90,7 +90,7 @@ fn render_alert(alert: &Alert) -> Markup {
                 h3 class="alert-title" { (alert.alert) }
                 div class="alert-badges" {
                     span class=(format!("badge risk-{}", risk_class)) { (risk_label) }
-                    span class=(format!("badge confidence-{}", confidence_class)) { 
+                    span class=(format!("badge confidence-{}", confidence_class)) {
                         "Confidence: " (confidence_label)
                     }
                 }

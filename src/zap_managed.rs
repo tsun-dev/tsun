@@ -126,14 +126,14 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
         "run",
         "-d",
         "--network",
-        "host",  // Use host network - ZAP will bind directly to host ports
+        "host", // Use host network - ZAP will bind directly to host ports
         &opts.image,
         "zap.sh",
         "-daemon",
         "-host",
         "0.0.0.0",
         "-port",
-        &port_str,  // Use the host port directly
+        &port_str, // Use the host port directly
         "-config",
         &key_cfg,
         "-config",
@@ -181,7 +181,10 @@ async fn wait_for_zap_ready(base_url: &str, timeout_secs: u64) -> anyhow::Result
 
     loop {
         if start.elapsed() > timeout {
-            return Err(anyhow!("ZAP container failed to become ready within {} seconds", timeout_secs));
+            return Err(anyhow!(
+                "ZAP container failed to become ready within {} seconds",
+                timeout_secs
+            ));
         }
 
         let health_url = format!("{}/JSON/core/action/version/", base_url);

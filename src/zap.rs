@@ -32,7 +32,7 @@ struct ScanIdResponse {
 #[derive(Debug, Deserialize)]
 struct ScanProgressResponse {
     #[serde(rename = "scanProgress")]
-    scan_progress: Vec<serde_json::Value>,  // Mixed array: [url_string, {HostProcess: ...}]
+    scan_progress: Vec<serde_json::Value>, // Mixed array: [url_string, {HostProcess: ...}]
 }
 
 // NOTE: We intentionally parse ZAP's alert schema via `ZapAlertsApiResponse` and
@@ -95,9 +95,7 @@ fn zap_risk_to_code(risk: &str) -> String {
 
 impl ZapClient {
     pub fn new(base_url: &str) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
         Ok(ZapClient::Real(RealZapClient {
             client,
@@ -146,7 +144,11 @@ impl ZapClient {
         alert_threshold: Option<&str>,
     ) -> Result<String> {
         match self {
-            ZapClient::Real(client) => client.start_scan(target, max_urls, attack_strength, alert_threshold).await,
+            ZapClient::Real(client) => {
+                client
+                    .start_scan(target, max_urls, attack_strength, alert_threshold)
+                    .await
+            }
             ZapClient::Mock(client) => client.start_scan(target).await,
         }
     }
@@ -182,11 +184,7 @@ impl RealZapClient {
 
         tracing::debug!("ZAP API: Accessing URL to add to site tree: {}", target);
 
-        let request = self
-            .client
-            .get(&url)
-            .query(&[("url", target)])
-            .build()?;
+        let request = self.client.get(&url).query(&[("url", target)]).build()?;
 
         let resp = self.client.execute(request).await?;
         let status = resp.status();
@@ -217,43 +215,43 @@ impl RealZapClient {
         tracing::info!("ZAP API: Starting scan for {}", target);
 
         let mut query_params = vec![("url", target.to_string())];
-        
+
         if let Some(max) = max_urls {
             query_params.push(("maxChildren", max.to_string()));
         }
-        
+
         if let Some(strength) = attack_strength {
             query_params.push(("attackStrength", strength.to_uppercase()));
         }
-        
+
         if let Some(threshold) = alert_threshold {
             query_params.push(("alertThreshold", threshold.to_uppercase()));
         }
 
-        let request = self
-            .client
-            .get(&url)
-            .query(&query_params)
-            .build()?;
+        let request = self.client.get(&url).query(&query_params).build()?;
 
-        let resp = self
-            .client
-            .execute(request)
-            .await?;
+        let resp = self.client.execute(request).await?;
 
         let status = resp.status();
         let body = resp.text().await?;
 
         if !status.is_success() {
             tracing::error!("ZAP API error: HTTP {} - Body: {}", status, body);
-            return Err(anyhow::anyhow!("ZAP start_scan failed: HTTP {} - {}", status, body));
+            return Err(anyhow::anyhow!(
+                "ZAP start_scan failed: HTTP {} - {}",
+                status,
+                body
+            ));
         }
 
-        let response: ScanIdResponse = serde_json::from_str(&body)
-            .map_err(|e| {
-                tracing::error!("JSON parse error: {} - Body: {}", e, body);
-                anyhow::anyhow!("Failed to parse ZAP response as JSON: {} - Body: {}", e, body)
-            })?;
+        let response: ScanIdResponse = serde_json::from_str(&body).map_err(|e| {
+            tracing::error!("JSON parse error: {} - Body: {}", e, body);
+            anyhow::anyhow!(
+                "Failed to parse ZAP response as JSON: {} - Body: {}",
+                e,
+                body
+            )
+        })?;
 
         Ok(response.scan)
     }
@@ -263,10 +261,10 @@ impl RealZapClient {
         let timeout = Duration::from_secs(timeout_secs);
         let mut last_print = std::time::Instant::now();
         let print_every = Duration::from_secs(20);
-        
+
         // Give ZAP a moment to actually start the scan
         sleep(Duration::from_secs(3)).await;
-        
+
         let mut was_running = false;
         let mut empty_count = 0;
         let mut last_overall_pct: i32 = -1;
@@ -298,20 +296,24 @@ impl RealZapClient {
                 continue;
             }
 
-            let response: ScanProgressResponse = serde_json::from_str(&body)
-                .map_err(|e| {
-                    tracing::error!("JSON parse error in wait_for_scan: {} - Body: {}", e, body);
-                    anyhow::anyhow!("Failed to parse ZAP status response: {} - Body: {}", e, body)
-                })?;
+            let response: ScanProgressResponse = serde_json::from_str(&body).map_err(|e| {
+                tracing::error!("JSON parse error in wait_for_scan: {} - Body: {}", e, body);
+                anyhow::anyhow!(
+                    "Failed to parse ZAP status response: {} - Body: {}",
+                    e,
+                    body
+                )
+            })?;
 
             if response.scan_progress.is_empty() {
                 empty_count += 1;
                 if empty_count == 1 || empty_count % 3 == 0 {
                     println!("  Waiting for scan to start... ({} checks)", empty_count);
                 }
-                
+
                 // If empty for too long, scan may have finished quickly or not started
-                if empty_count > 6 {  // 30 seconds of empty
+                if empty_count > 6 {
+                    // 30 seconds of empty
                     if was_running {
                         break;
                     } else {
@@ -322,8 +324,8 @@ impl RealZapClient {
                 sleep(Duration::from_secs(5)).await;
                 continue;
             }
-            
-            empty_count = 0;  // Reset on non-empty response
+
+            empty_count = 0; // Reset on non-empty response
 
             // Parse the complex scanProgress format
             let mut total_plugins = 0;
@@ -333,50 +335,55 @@ impl RealZapClient {
             let mut active_plugins = 0;
             let mut pending_plugins = 0;
             let mut most_advanced_active: Option<(String, i32)> = None;
-            
+
             // scanProgress is: [url_string, {"HostProcess": [{"Plugin": [name,id,rel,status,...]}, ...]}]
             if let Some(progress_val) = response.scan_progress.get(1) {
                 if let Some(host_process) = progress_val.get("HostProcess") {
                     if let Some(plugin_list) = host_process.as_array() {
                         for plugin_obj in plugin_list {
                             // Each element is {"Plugin": [name, id, release, status, ...]}
-                            if let Some(plugin_data) = plugin_obj.get("Plugin").and_then(|v| v.as_array()) {
+                            if let Some(plugin_data) =
+                                plugin_obj.get("Plugin").and_then(|v| v.as_array())
+                            {
                                 total_plugins += 1;
                                 // Plugin format: [name, id, release, status, ...]
-                                if let Some(status_str) = plugin_data.get(3).and_then(|v| v.as_str()) {
-                                    let pct: i32 = if status_str == "Complete" || status_str == "100%" {
-                                        completed_plugins += 1;
-                                        100
-                                    } else if let Some(raw) = status_str.strip_suffix('%') {
-                                        // Prefer to treat any N% as active work.
-                                        if let Ok(p) = raw.parse::<i32>() {
-                                            if p < 100 {
-                                                _has_active = true;
-                                                active_plugins += 1;
-                                                let name = plugin_data
-                                                    .first()
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("(unknown)")
-                                                    .to_string();
+                                if let Some(status_str) =
+                                    plugin_data.get(3).and_then(|v| v.as_str())
+                                {
+                                    let pct: i32 =
+                                        if status_str == "Complete" || status_str == "100%" {
+                                            completed_plugins += 1;
+                                            100
+                                        } else if let Some(raw) = status_str.strip_suffix('%') {
+                                            // Prefer to treat any N% as active work.
+                                            if let Ok(p) = raw.parse::<i32>() {
+                                                if p < 100 {
+                                                    _has_active = true;
+                                                    active_plugins += 1;
+                                                    let name = plugin_data
+                                                        .first()
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("(unknown)")
+                                                        .to_string();
 
-                                                let is_better = most_advanced_active
-                                                    .as_ref()
-                                                    .map(|(_, best_pct)| p > *best_pct)
-                                                    .unwrap_or(true);
-                                                if is_better {
-                                                    most_advanced_active = Some((name, p));
+                                                    let is_better = most_advanced_active
+                                                        .as_ref()
+                                                        .map(|(_, best_pct)| p > *best_pct)
+                                                        .unwrap_or(true);
+                                                    if is_better {
+                                                        most_advanced_active = Some((name, p));
+                                                    }
                                                 }
+                                                p.clamp(0, 100)
+                                            } else {
+                                                pending_plugins += 1;
+                                                0
                                             }
-                                            p.clamp(0, 100)
                                         } else {
+                                            // e.g. "Pending", "Queued", "" or other strings.
                                             pending_plugins += 1;
                                             0
-                                        }
-                                    } else {
-                                        // e.g. "Pending", "Queued", "" or other strings.
-                                        pending_plugins += 1;
-                                        0
-                                    };
+                                        };
                                     sum_pct += pct;
                                 }
                             }
@@ -388,7 +395,7 @@ impl RealZapClient {
             if total_plugins > 0 {
                 was_running = true;
                 let overall_pct = (sum_pct / total_plugins).clamp(0, 100);
-                
+
                 // Print to stdout so it doesn't get overwritten by the spinner/tracing output (stderr).
                 if overall_pct != last_overall_pct || last_print.elapsed() >= print_every {
                     let active_hint = most_advanced_active
@@ -416,7 +423,7 @@ impl RealZapClient {
                     last_overall_pct = overall_pct;
                     last_print = std::time::Instant::now();
                 }
-                
+
                 // Scan is done when all plugins are complete.
                 // Do NOT stop just because nothing is "active"—ZAP can have queued/pending plugins.
                 if completed_plugins >= total_plugins {
@@ -441,27 +448,30 @@ impl RealZapClient {
             urlencoding::encode(target)
         );
 
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await?;
+        let resp = self.client.get(&url).send().await?;
 
         let status = resp.status();
         let body = resp.text().await?;
 
         if !status.is_success() {
             tracing::error!("ZAP API error: HTTP {} - Body: {}", status, body);
-            return Err(anyhow::anyhow!("ZAP get_alerts failed: HTTP {} - {}", status, body));
+            return Err(anyhow::anyhow!(
+                "ZAP get_alerts failed: HTTP {} - {}",
+                status,
+                body
+            ));
         }
 
         // ZAP's alerts schema varies between versions/addons (pluginId vs pluginid, risk vs riskcode, etc).
         // Parse using a tolerant API struct and convert to our internal Alert model.
-        let api_response: ZapAlertsApiResponse = serde_json::from_str(&body)
-            .map_err(|e| {
-                tracing::error!("JSON parse error in get_alerts: {} - Body: {}", e, body);
-                anyhow::anyhow!("Failed to parse ZAP alerts response: {} - Body: {}", e, body)
-            })?;
+        let api_response: ZapAlertsApiResponse = serde_json::from_str(&body).map_err(|e| {
+            tracing::error!("JSON parse error in get_alerts: {} - Body: {}", e, body);
+            anyhow::anyhow!(
+                "Failed to parse ZAP alerts response: {} - Body: {}",
+                e,
+                body
+            )
+        })?;
 
         let alerts = api_response
             .alerts

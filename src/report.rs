@@ -37,7 +37,9 @@ impl VulnerabilityType {
             VulnerabilityType::SensitiveDataExposure => "Sensitive Data Exposure",
             VulnerabilityType::XmlExternalEntity => "XML External Entity (XXE)",
             VulnerabilityType::BrokenAccessControl => "Broken Access Control",
-            VulnerabilityType::UsingComponentsWithKnownVulnerabilities => "Using Components with Known Vulnerabilities",
+            VulnerabilityType::UsingComponentsWithKnownVulnerabilities => {
+                "Using Components with Known Vulnerabilities"
+            }
             VulnerabilityType::InsufficientLogging => "Insufficient Logging & Monitoring",
             VulnerabilityType::Other => "Other",
         }
@@ -106,14 +108,17 @@ impl ScanReport {
             "high" | "2" => Ok(SeverityLevel::High),
             "medium" | "1" => Ok(SeverityLevel::Medium),
             "low" | "0" => Ok(SeverityLevel::Low),
-            _ => anyhow::bail!("Invalid severity level: {}. Valid: critical, high, medium, low", level),
+            _ => anyhow::bail!(
+                "Invalid severity level: {}. Valid: critical, high, medium, low",
+                level
+            ),
         }
     }
 
     /// Filter alerts to only include those at or above the minimum severity
     pub fn filter_by_severity(&mut self, min_level: &str) -> anyhow::Result<()> {
         let min_severity = Self::parse_severity(min_level)?;
-        
+
         let original_count = self.alerts.len();
         self.alerts.retain(|alert| {
             let alert_severity = Self::risk_code_to_severity(&alert.riskcode);
@@ -138,31 +143,19 @@ impl ScanReport {
     }
 
     pub fn critical_count(&self) -> usize {
-        self.alerts
-            .iter()
-            .filter(|a| a.riskcode == "3")
-            .count()
+        self.alerts.iter().filter(|a| a.riskcode == "3").count()
     }
 
     pub fn high_count(&self) -> usize {
-        self.alerts
-            .iter()
-            .filter(|a| a.riskcode == "2")
-            .count()
+        self.alerts.iter().filter(|a| a.riskcode == "2").count()
     }
 
     pub fn medium_count(&self) -> usize {
-        self.alerts
-            .iter()
-            .filter(|a| a.riskcode == "1")
-            .count()
+        self.alerts.iter().filter(|a| a.riskcode == "1").count()
     }
 
     pub fn low_count(&self) -> usize {
-        self.alerts
-            .iter()
-            .filter(|a| a.riskcode == "0")
-            .count()
+        self.alerts.iter().filter(|a| a.riskcode == "0").count()
     }
 
     pub fn summary(&self) -> String {
@@ -186,18 +179,14 @@ impl ScanReport {
 
     /// Get maximum CVSS score
     pub fn max_cvss_score(&self) -> f32 {
-        self.alerts
-            .iter()
-            .map(|a| a.cvss_score)
-            .fold(0.0, f32::max)
+        self.alerts.iter().map(|a| a.cvss_score).fold(0.0, f32::max)
     }
 
     /// Count vulnerabilities by type
     pub fn vulnerabilities_by_type(&self) -> std::collections::HashMap<String, usize> {
         let mut map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         for alert in &self.alerts {
-            *map.entry(alert.vulnerability_type.clone())
-                .or_insert(0) += 1;
+            *map.entry(alert.vulnerability_type.clone()).or_insert(0) += 1;
         }
         map
     }
@@ -221,7 +210,10 @@ impl ScanReport {
             "yaml" => serde_yaml::to_string(&self)?,
             "html" => crate::html::generate_html_report(self),
             "sarif" => crate::sarif::generate_sarif_report(self),
-            _ => anyhow::bail!("Unsupported format: {}. Supported formats: json, yaml, html, sarif", format),
+            _ => anyhow::bail!(
+                "Unsupported format: {}. Supported formats: json, yaml, html, sarif",
+                format
+            ),
         };
 
         std::fs::write(path, content)?;
@@ -317,16 +309,17 @@ impl ReportComparison {
         let current_breakdown = current.risk_breakdown();
 
         let total_delta = current.alerts.len() as i32 - baseline.alerts.len() as i32;
-        let critical_delta = current_breakdown.critical_count as i32 - baseline_breakdown.critical_count as i32;
+        let critical_delta =
+            current_breakdown.critical_count as i32 - baseline_breakdown.critical_count as i32;
         let high_delta = current_breakdown.high_count as i32 - baseline_breakdown.high_count as i32;
-        let medium_delta = current_breakdown.medium_count as i32 - baseline_breakdown.medium_count as i32;
+        let medium_delta =
+            current_breakdown.medium_count as i32 - baseline_breakdown.medium_count as i32;
         let low_delta = current_breakdown.low_count as i32 - baseline_breakdown.low_count as i32;
         let average_cvss_delta = current.average_cvss_score() - baseline.average_cvss_score();
 
-        let is_improvement =
-            total_delta < 0
-                || (total_delta == 0 && average_cvss_delta < 0.0)
-                || (total_delta == 0 && average_cvss_delta == 0.0 && !fixed_vulns.is_empty());
+        let is_improvement = total_delta < 0
+            || (total_delta == 0 && average_cvss_delta < 0.0)
+            || (total_delta == 0 && average_cvss_delta == 0.0 && !fixed_vulns.is_empty());
 
         Self {
             new_vulnerabilities: new_vulns,
@@ -344,10 +337,7 @@ impl ReportComparison {
 
     /// Check if two alerts represent the same vulnerability
     fn alerts_equal(a: &Alert, b: &Alert) -> bool {
-        a.pluginid == b.pluginid
-            && a.alert == b.alert
-            && a.url == b.url
-            && a.riskcode == b.riskcode
+        a.pluginid == b.pluginid && a.alert == b.alert && a.url == b.url && a.riskcode == b.riskcode
     }
 
     /// Get summary of comparison

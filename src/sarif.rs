@@ -1,5 +1,5 @@
+use crate::report::{Alert, ScanReport};
 use serde::{Deserialize, Serialize};
-use crate::report::{ScanReport, Alert};
 
 /// SARIF 2.1.0 format support for GitHub/GitLab integration
 /// https://sarifweb.azurewebsites.net/
@@ -135,9 +135,10 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
             short_description: Some(ShortDescription {
                 text: alert.alert.clone(),
             }),
-            full_description: alert.description.as_ref().map(|d| FullDescription {
-                text: d.clone(),
-            }),
+            full_description: alert
+                .description
+                .as_ref()
+                .map(|d| FullDescription { text: d.clone() }),
             default_configuration: DefaultConfiguration {
                 level: level.clone(),
             },
@@ -192,7 +193,8 @@ fn create_alert_properties(alert: &Alert) -> std::collections::HashMap<String, s
     props.insert(
         "cvssScore".to_string(),
         serde_json::Value::Number(
-            serde_json::Number::from_f64(alert.cvss_score as f64).unwrap_or(serde_json::Number::from(0)),
+            serde_json::Number::from_f64(alert.cvss_score as f64)
+                .unwrap_or(serde_json::Number::from(0)),
         ),
     );
     props.insert(

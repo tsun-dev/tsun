@@ -31,10 +31,8 @@ mod tests {
 
         scanner.set_verbose(true);
 
-        let report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         assert_eq!(report.target, "https://example.com");
         assert!(report.vulnerability_count() > 0);
@@ -51,10 +49,8 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         // Verify we got the expected mock vulnerabilities
         assert_eq!(report.critical_count(), 0);
@@ -89,13 +85,11 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let html = crate::html::generate_html_report(&report);
-        
+
         // Verify HTML contains expected elements
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("Security Scan Report"));
@@ -118,14 +112,12 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let mut report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let mut report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let original_count = report.vulnerability_count();
         report.filter_by_severity("high").expect("Filter failed");
-        
+
         // Should only have high severity issues (excludes medium/low)
         assert!(report.vulnerability_count() < original_count);
         assert!(report.high_count() > 0);
@@ -143,14 +135,12 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let mut report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let mut report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let original_count = report.vulnerability_count();
         report.filter_by_severity("medium").expect("Filter failed");
-        
+
         // Should have medium and high (excludes low)
         assert!(report.vulnerability_count() < original_count);
         assert_eq!(report.low_count(), 0);
@@ -166,14 +156,12 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let mut report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let mut report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let original_count = report.vulnerability_count();
         report.filter_by_severity("low").expect("Filter failed");
-        
+
         // Should have all alerts (nothing filtered)
         assert_eq!(report.vulnerability_count(), original_count);
     }
@@ -205,10 +193,8 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let avg_cvss = report.average_cvss_score();
         let max_cvss = report.max_cvss_score();
@@ -234,19 +220,19 @@ mod tests {
         )
         .expect("Failed to create scanner");
 
-        let report: crate::report::ScanReport = scanner
-            .run()
-            .await
-            .expect("Failed to run mock scan");
+        let report: crate::report::ScanReport =
+            scanner.run().await.expect("Failed to run mock scan");
 
         let breakdown = report.risk_breakdown();
         let by_type = &breakdown.vulnerabilities_by_type;
 
         // Verify we have vulnerability types
         assert!(!by_type.is_empty());
-        assert!(by_type.contains_key("Security Misconfiguration")
-            || by_type.contains_key("Cross-Site Scripting (XSS)")
-            || by_type.contains_key("Sensitive Data Exposure"));
+        assert!(
+            by_type.contains_key("Security Misconfiguration")
+                || by_type.contains_key("Cross-Site Scripting (XSS)")
+                || by_type.contains_key("Sensitive Data Exposure")
+        );
 
         println!("Vulnerability Types: {:?}", by_type);
     }
@@ -256,12 +242,9 @@ mod tests {
         let _config = ScanConfig::default();
 
         // Baseline scan with 6 alerts
-        let baseline_scanner = Scanner::new(
-            "https://example.com".to_string(),
-            _config.clone(),
-            true,
-        )
-        .expect("Failed to create baseline scanner");
+        let baseline_scanner =
+            Scanner::new("https://example.com".to_string(), _config.clone(), true)
+                .expect("Failed to create baseline scanner");
 
         let baseline_report = baseline_scanner
             .run()
@@ -270,7 +253,9 @@ mod tests {
 
         // Current scan with fewer alerts (filtered high severity = 3 alerts)
         let mut current_report = baseline_report.clone();
-        current_report.filter_by_severity("high").expect("Failed to filter");
+        current_report
+            .filter_by_severity("high")
+            .expect("Failed to filter");
 
         let comparison = crate::report::ReportComparison::new(&baseline_report, &current_report);
 

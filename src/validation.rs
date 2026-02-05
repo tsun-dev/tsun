@@ -78,17 +78,17 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     }
 
     if !parent.is_dir() {
-        anyhow::bail!("Output path parent is not a directory: {}", parent.display());
+        anyhow::bail!(
+            "Output path parent is not a directory: {}",
+            parent.display()
+        );
     }
 
     // Try to write a test file to verify permissions
     match std::fs::metadata(parent) {
         Ok(metadata) => {
             if metadata.permissions().readonly() {
-                anyhow::bail!(
-                    "Output directory is not writable: {}",
-                    parent.display()
-                );
+                anyhow::bail!("Output directory is not writable: {}", parent.display());
             }
             Ok(())
         }

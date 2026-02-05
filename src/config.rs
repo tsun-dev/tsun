@@ -1,6 +1,6 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use anyhow::Result;
 
 /// Configuration for a security scan
 #[derive(Debug, Clone, Serialize, Deserialize)]

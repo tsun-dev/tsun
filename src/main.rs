@@ -2,21 +2,21 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod auth;
-mod zap;
-mod zap_mock;
-mod zap_managed;
 mod config;
-mod scanner;
-mod report;
-mod html;
-mod validation;
 mod display;
+mod html;
+mod report;
 mod sarif;
+mod scanner;
+mod validation;
+mod zap;
+mod zap_managed;
+mod zap_mock;
 
-use scanner::Scanner;
+use auth::{load_cookie_header, parse_headers};
 use config::ScanConfig;
 use display::Display;
-use auth::{parse_headers, load_cookie_header};
+use scanner::Scanner;
 
 #[derive(Parser)]
 #[command(name = "arete")]
@@ -152,8 +152,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("arete=info".parse()?),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("arete=info".parse()?),
         )
         .init();
 
@@ -215,7 +214,13 @@ async fn main() -> anyhow::Result<()> {
         Commands::Status { host } => {
             run_status(host).await?;
         }
-        Commands::UploadSarif { file, repo, commit, git_ref, token } => {
+        Commands::UploadSarif {
+            file,
+            repo,
+            commit,
+            git_ref,
+            token,
+        } => {
             run_upload_sarif(file, repo, commit, git_ref, token).await?;
         }
     }
@@ -247,11 +252,9 @@ async fn run_scan(
     alert_threshold: Option<String>,
 ) -> anyhow::Result<i32> {
     // Validate inputs
-    validation::validate_url(&target)
-        .map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
-    
-    validation::validate_format(&format)
-        .map_err(|e| anyhow::anyhow!("Invalid format: {}", e))?;
+    validation::validate_url(&target).map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
+
+    validation::validate_format(&format).map_err(|e| anyhow::anyhow!("Invalid format: {}", e))?;
 
     if let Some(ref config_file) = config_path {
         validation::validate_config_file(config_file)
@@ -270,21 +273,22 @@ async fn run_scan(
     };
 
     // Apply scan profile defaults
-    let (profile_timeout, profile_max_urls, profile_attack, profile_threshold) = match profile.as_str() {
-        "ci" => (
-            Some(900),      // 15 minutes
-            Some(200),      // Limit crawling
-            "low".to_string(),
-            "medium".to_string(),
-        ),
-        "deep" => (
-            Some(7200),     // 2 hours
-            None,           // No URL limit
-            "medium".to_string(),
-            "low".to_string(),
-        ),
-        _ => (None, None, "low".to_string(), "medium".to_string()),
-    };
+    let (profile_timeout, profile_max_urls, profile_attack, profile_threshold) =
+        match profile.as_str() {
+            "ci" => (
+                Some(900), // 15 minutes
+                Some(200), // Limit crawling
+                "low".to_string(),
+                "medium".to_string(),
+            ),
+            "deep" => (
+                Some(7200), // 2 hours
+                None,       // No URL limit
+                "medium".to_string(),
+                "low".to_string(),
+            ),
+            _ => (None, None, "low".to_string(), "medium".to_string()),
+        };
 
     // CLI timeout overrides profile and config file
     if let Some(t) = timeout {
@@ -304,10 +308,7 @@ async fn run_scan(
             Display::info(&format!("Running login command: {}", cmd));
         }
         // Run the command via shell
-        let status = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .status();
+        let status = std::process::Command::new("sh").arg("-c").arg(cmd).status();
         match status {
             Ok(s) if s.success() => {
                 if verbose {
@@ -353,7 +354,7 @@ async fn run_scan(
         // Start managed ZAP container
         Display::section_header("Starting ZAP Engine");
         let spinner = Display::spinner("Starting managed ZAP container...");
-        
+
         let managed = zap_managed::start_managed_zap(zap_managed::ManagedZapOptions {
             image: zap_image,
             host_port: zap_port,
@@ -361,14 +362,17 @@ async fn run_scan(
             keep: keep_zap,
         })
         .await?;
-        
+
         spinner.finish_with_message("✓ ZAP container started");
         Display::status("ZAP URL", &managed.zap_url);
-        
+
         _managed_zap = managed;
         Scanner::new_with_managed_zap(target.clone(), config, &_managed_zap, effective_headers)?
     } else {
-        return Err(anyhow::anyhow!("Invalid engine: {}. Use 'mock' or 'zap'", engine));
+        return Err(anyhow::anyhow!(
+            "Invalid engine: {}. Use 'mock' or 'zap'",
+            engine
+        ));
     };
 
     if verbose {
@@ -445,7 +449,8 @@ async fn run_scan(
         match report::ScanReport::parse_severity(&exit_on_severity) {
             Ok(threshold) => {
                 if report.alerts.iter().any(|a| {
-                    let alert_severity = report::ScanReport::parse_severity(&a.riskcode).unwrap_or(report::SeverityLevel::Low);
+                    let alert_severity = report::ScanReport::parse_severity(&a.riskcode)
+                        .unwrap_or(report::SeverityLevel::Low);
                     alert_severity >= threshold
                 }) {
                     Display::error(&format!(
@@ -458,7 +463,10 @@ async fn run_scan(
                 }
             }
             Err(_) => {
-                Display::warning(&format!("Invalid exit_on_severity value: {}", exit_on_severity));
+                Display::warning(&format!(
+                    "Invalid exit_on_severity value: {}",
+                    exit_on_severity
+                ));
                 0
             }
         }
@@ -555,4 +563,3 @@ async fn run_upload_sarif(
 mod tests {
     // Tests moved to src/auth.rs
 }
-

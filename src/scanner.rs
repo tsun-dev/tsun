@@ -30,7 +30,10 @@ impl Scanner {
         let zap_client = if use_mock {
             Arc::new(crate::zap::ZapClient::mock()?)
         } else {
-            Arc::new(crate::zap::ZapClient::new_with_headers(&config.zap.host, &headers)?)
+            Arc::new(crate::zap::ZapClient::new_with_headers(
+                &config.zap.host,
+                &headers,
+            )?)
         };
 
         Ok(Self {
@@ -93,7 +96,8 @@ impl Scanner {
         }
 
         // Start new scan with parameters
-        let scan_id = self.zap_client
+        let scan_id = self
+            .zap_client
             .start_scan(
                 &self.target,
                 self.max_urls,

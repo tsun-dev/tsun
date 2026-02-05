@@ -38,7 +38,11 @@ impl Display {
     /// Print a metric with value
     #[allow(dead_code)]
     pub fn metric(label: &str, value: usize, color_fn: fn(&str) -> colored::ColoredString) {
-        println!("  {} {}", label.dimmed(), color_fn(&value.to_string()).bold());
+        println!(
+            "  {} {}",
+            label.dimmed(),
+            color_fn(&value.to_string()).bold()
+        );
     }
 
     /// Create a spinner for long-running operations
@@ -112,7 +116,7 @@ impl Display {
     /// Print CVSS metrics
     pub fn cvss_metrics(average_cvss: f32, max_cvss: f32) {
         Self::section_header("CVSS Metrics");
-        
+
         let avg_color = if average_cvss >= 7.0 {
             colored::Color::Red
         } else if average_cvss >= 4.0 {
@@ -124,7 +128,11 @@ impl Display {
         let max_color = if max_cvss >= 9.0 {
             colored::Color::Red
         } else if max_cvss >= 7.0 {
-            colored::Color::TrueColor { r: 255, g: 107, b: 107 }
+            colored::Color::TrueColor {
+                r: 255,
+                g: 107,
+                b: 107,
+            }
         } else if max_cvss >= 4.0 {
             colored::Color::Yellow
         } else {
@@ -152,7 +160,7 @@ impl Display {
         Self::section_header("Vulnerabilities by Type");
         let mut sorted: Vec<_> = breakdown.iter().collect();
         sorted.sort_by(|a, b| b.1.cmp(a.1));
-        
+
         for (vuln_type, count) in sorted {
             println!("  {} {}", vuln_type.dimmed(), count.to_string().bold());
         }
@@ -178,20 +186,32 @@ impl Display {
             comparison.unchanged_vulnerabilities.len(),
             format_delta(comparison.total_delta)
         );
-        println!("  New Vulnerabilities: {}", comparison.new_vulnerabilities.len().to_string().red());
-        println!("  Fixed Vulnerabilities: {}", comparison.fixed_vulnerabilities.len().to_string().green());
+        println!(
+            "  New Vulnerabilities: {}",
+            comparison.new_vulnerabilities.len().to_string().red()
+        );
+        println!(
+            "  Fixed Vulnerabilities: {}",
+            comparison.fixed_vulnerabilities.len().to_string().green()
+        );
 
         // Severity deltas
         println!();
         println!("  Severity Changes:");
         if comparison.critical_delta != 0 {
-            println!("    Critical: {}", format_delta(comparison.critical_delta).red());
+            println!(
+                "    Critical: {}",
+                format_delta(comparison.critical_delta).red()
+            );
         }
         if comparison.high_delta != 0 {
             println!("    High: {}", format_delta(comparison.high_delta).red());
         }
         if comparison.medium_delta != 0 {
-            println!("    Medium: {}", format_delta(comparison.medium_delta).yellow());
+            println!(
+                "    Medium: {}",
+                format_delta(comparison.medium_delta).yellow()
+            );
         }
         if comparison.low_delta != 0 {
             println!("    Low: {}", format_delta(comparison.low_delta).cyan());

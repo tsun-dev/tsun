@@ -30,6 +30,11 @@ struct ScanIdResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct SpiderStatusResponse {
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct ScanProgressResponse {
     #[serde(rename = "scanProgress")]
     scan_progress: Vec<serde_json::Value>, // Mixed array: [url_string, {HostProcess: ...}]
@@ -197,6 +202,89 @@ impl RealZapClient {
         Ok(())
     }
 
+    async fn start_spider_scan(&self, target: &str, max_urls: Option<u32>) -> Result<String> {
+        let url = format!(
+            "{}/JSON/spider/action/scan/",
+            self.base_url.trim_end_matches('/')
+        );
+
+        tracing::info!("ZAP API: Spidering target to populate site tree: {}", target);
+
+        let mut query_params = vec![("url", target.to_string())];
+        if let Some(max) = max_urls {
+            query_params.push(("maxChildren", max.to_string()));
+        }
+
+        let request = self.client.get(&url).query(&query_params).build()?;
+        let resp = self.client.execute(request).await?;
+
+        let status = resp.status();
+        let body = resp.text().await?;
+
+        if !status.is_success() {
+            tracing::warn!("ZAP spider scan warning: HTTP {} - Body: {}", status, body);
+            anyhow::bail!("ZAP spider scan failed: HTTP {} - {}", status, body);
+        }
+
+        let response: ScanIdResponse = serde_json::from_str(&body).map_err(|e| {
+            tracing::error!("JSON parse error in start_spider_scan: {} - Body: {}", e, body);
+            anyhow::anyhow!(
+                "Failed to parse ZAP spider response as JSON: {} - Body: {}",
+                e,
+                body
+            )
+        })?;
+
+        Ok(response.scan)
+    }
+
+    async fn wait_for_spider_scan(&self, scan_id: &str, timeout_secs: u64) -> Result<()> {
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(timeout_secs);
+
+        loop {
+            if start.elapsed() > timeout {
+                anyhow::bail!("Spider timeout exceeded after {}s", timeout_secs);
+            }
+
+            let url = format!(
+                "{}/JSON/spider/view/status/",
+                self.base_url.trim_end_matches('/')
+            );
+
+            let resp = self
+                .client
+                .get(&url)
+                .query(&[("scanId", scan_id)])
+                .send()
+                .await?;
+
+            let status = resp.status();
+            let body = resp.text().await?;
+
+            if !status.is_success() {
+                tracing::warn!("ZAP spider status warning: HTTP {}", status);
+                sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+
+            let response: SpiderStatusResponse = serde_json::from_str(&body).map_err(|e| {
+                tracing::error!("JSON parse error in wait_for_spider_scan: {} - Body: {}", e, body);
+                anyhow::anyhow!(
+                    "Failed to parse ZAP spider status response: {} - Body: {}",
+                    e,
+                    body
+                )
+            })?;
+
+            if response.status == "100" {
+                return Ok(());
+            }
+
+            sleep(Duration::from_secs(2)).await;
+        }
+    }
+
     pub async fn start_scan(
         &self,
         target: &str,
@@ -234,6 +322,26 @@ impl RealZapClient {
 
         let status = resp.status();
         let body = resp.text().await?;
+
+        let (status, body) = if !status.is_success()
+            && status.as_u16() == 400
+            && body.contains("\"url_not_found\"")
+        {
+            tracing::warn!(
+                "ZAP returned url_not_found; spidering target then retrying active scan"
+            );
+            let spider_id = self.start_spider_scan(target, max_urls).await?;
+            // Keep this short; it's just to populate the site tree.
+            self.wait_for_spider_scan(&spider_id, 60).await?;
+
+            let request = self.client.get(&url).query(&query_params).build()?;
+            let resp = self.client.execute(request).await?;
+            let status = resp.status();
+            let body = resp.text().await?;
+            (status, body)
+        } else {
+            (status, body)
+        };
 
         if !status.is_success() {
             tracing::error!("ZAP API error: HTTP {} - Body: {}", status, body);

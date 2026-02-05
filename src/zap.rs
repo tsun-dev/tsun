@@ -344,10 +344,7 @@ impl RealZapClient {
                                 total_plugins += 1;
                                 // Plugin format: [name, id, release, status, ...]
                                 if let Some(status_str) = plugin_data.get(3).and_then(|v| v.as_str()) {
-                                    let pct: i32 = if status_str == "Complete" {
-                                        completed_plugins += 1;
-                                        100
-                                    } else if status_str == "100%" {
+                                    let pct: i32 = if status_str == "Complete" || status_str == "100%" {
                                         completed_plugins += 1;
                                         100
                                     } else if let Some(raw) = status_str.strip_suffix('%') {
@@ -357,7 +354,7 @@ impl RealZapClient {
                                                 _has_active = true;
                                                 active_plugins += 1;
                                                 let name = plugin_data
-                                                    .get(0)
+                                                    .first()
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("(unknown)")
                                                     .to_string();
@@ -390,7 +387,7 @@ impl RealZapClient {
 
             if total_plugins > 0 {
                 was_running = true;
-                let overall_pct = (sum_pct / total_plugins as i32).clamp(0, 100);
+                let overall_pct = (sum_pct / total_plugins).clamp(0, 100);
                 
                 // Print to stdout so it doesn't get overwritten by the spinner/tracing output (stderr).
                 if overall_pct != last_overall_pct || last_print.elapsed() >= print_every {

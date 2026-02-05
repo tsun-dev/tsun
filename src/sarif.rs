@@ -129,24 +129,20 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
             properties: Some(create_alert_properties(alert)),
         });
 
-        // Add rule if not already added
-        if !rules_map.contains_key(&rule_id) {
-            let rule = Rule {
-                id: rule_id.clone(),
-                name: alert.name.clone(),
-                short_description: Some(ShortDescription {
-                    text: alert.alert.clone(),
-                }),
-                full_description: alert.description.as_ref().map(|d| FullDescription {
-                    text: d.clone(),
-                }),
-                default_configuration: DefaultConfiguration {
-                    level: level.clone(),
-                },
-                help_uri: None,
-            };
-            rules_map.insert(rule_id, rule);
-        }
+        rules_map.entry(rule_id.clone()).or_insert_with(|| Rule {
+            id: rule_id.clone(),
+            name: alert.name.clone(),
+            short_description: Some(ShortDescription {
+                text: alert.alert.clone(),
+            }),
+            full_description: alert.description.as_ref().map(|d| FullDescription {
+                text: d.clone(),
+            }),
+            default_configuration: DefaultConfiguration {
+                level: level.clone(),
+            },
+            help_uri: None,
+        });
     }
 
     let rules: Vec<Rule> = rules_map.into_values().collect();

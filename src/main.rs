@@ -17,7 +17,6 @@ use scanner::Scanner;
 use config::ScanConfig;
 use display::Display;
 use auth::{parse_headers, load_cookie_header};
-use reqwest;
 
 #[derive(Parser)]
 #[command(name = "arete")]
@@ -29,6 +28,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Commands {
     /// Run a security scan on a target
     Scan {
@@ -223,13 +223,14 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_scan(
     target: String,
     config_path: Option<PathBuf>,
     format: String,
     output: Option<PathBuf>,
     verbose: bool,
-    _min_severity: String,
+    min_severity: String,
     engine: String,
     zap_image: String,
     zap_port: u16,
@@ -401,9 +402,7 @@ async fn run_scan(
     let mut report = scanner.run().await?;
     spinner.finish_with_message("✓ Scan completed");
 
-    // Apply severity filter - use "low" as default if not specified
-    let min_severity = if engine == "zap" { "low" } else { "low" };
-    report.filter_by_severity(min_severity)?;
+    report.filter_by_severity(&min_severity)?;
 
     // Display results
     Display::vulnerability_summary(
@@ -520,7 +519,7 @@ async fn run_upload_sarif(
     }
     let gh_token = gh_token.unwrap();
 
-    let commit_sha = commit.unwrap_or_else(|| "".to_string());
+    let commit_sha = commit.unwrap_or_default();
     let ref_field = git_ref.unwrap_or_else(|| "refs/heads/main".to_string());
 
     let url = format!("https://api.github.com/repos/{}/code-scanning/sarifs", repo);

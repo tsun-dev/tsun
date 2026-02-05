@@ -1,7 +1,7 @@
-/// Managed ZAP Docker runtime
-///
-/// Automatically starts and stops a ZAP container for the duration of a scan.
-/// On drop, the container is cleaned up (unless --keep-zap is set for debugging).
+//! Managed ZAP Docker runtime
+//!
+//! Automatically starts and stops a ZAP container for the duration of a scan.
+//! On drop, the container is cleaned up (unless --keep-zap is set for debugging).
 
 use anyhow::{anyhow, Context};
 use std::net::TcpListener;
@@ -185,7 +185,7 @@ async fn wait_for_zap_ready(base_url: &str, timeout_secs: u64) -> anyhow::Result
         }
 
         let health_url = format!("{}/JSON/core/action/version/", base_url);
-        if let Ok(_) = reqwest::Client::new().get(&health_url).send().await {
+        if reqwest::Client::new().get(&health_url).send().await.is_ok() {
             info!("ZAP container is ready");
             return Ok(());
         }

@@ -326,7 +326,7 @@ impl ReportComparison {
         let is_improvement =
             total_delta < 0
                 || (total_delta == 0 && average_cvss_delta < 0.0)
-                || (total_delta == 0 && average_cvss_delta == 0.0 && fixed_vulns.len() > 0);
+                || (total_delta == 0 && average_cvss_delta == 0.0 && !fixed_vulns.is_empty());
 
         Self {
             new_vulnerabilities: new_vulns,

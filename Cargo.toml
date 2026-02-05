@@ -1,8 +1,14 @@
 [package]
 name = "arete"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "A security scanning tool powered by OWASP ZAP"
+description = "Security scanning tool powered by OWASP ZAP with Docker-managed scans, scan profiles, and CI integration"
+authors = ["cWashington91"]
+license = "MIT"
+repository = "https://github.com/cWashington91/arete"
+readme = "README.md"
+keywords = ["security", "zap", "owasp", "scanner", "ci"]
+categories = ["command-line-utilities", "development-tools"]
 
 [lib]
 name = "arete"
@@ -28,5 +34,7 @@ dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 urlencoding = "2.1"
 maud = "0.26"
+url = "2.5"
+indicatif = "0.18.3"
 
 [dev-dependencies]

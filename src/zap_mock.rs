@@ -44,7 +44,7 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
     vec![
         Alert {
             pluginid: "10010".to_string(),
-            alertRef: "10010".to_string(),
+            alert_ref: "10010".to_string(),
             alert: "Cookie without Secure Flag".to_string(),
             name: "Cookie without Secure Flag".to_string(),
             riskcode: "2".to_string(), // High
@@ -63,10 +63,12 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("Set-Cookie: session_id=abc123".to_string()),
                 },
             ],
+            cvss_score: 7.5,
+            vulnerability_type: "Security Misconfiguration".to_string(),
         },
         Alert {
             pluginid: "10015".to_string(),
-            alertRef: "10015".to_string(),
+            alert_ref: "10015".to_string(),
             alert: "Re-CAPTCHA Detected".to_string(),
             name: "Re-CAPTCHA Detected".to_string(),
             riskcode: "0".to_string(), // Informational
@@ -83,10 +85,12 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("script src=\"https://www.google.com/recaptcha/api.js\"".to_string()),
                 },
             ],
+            cvss_score: 0.0,
+            vulnerability_type: "Other".to_string(),
         },
         Alert {
             pluginid: "90018".to_string(),
-            alertRef: "90018".to_string(),
+            alert_ref: "90018".to_string(),
             alert: "Header Injection".to_string(),
             name: "Header Injection".to_string(),
             riskcode: "2".to_string(), // High
@@ -103,10 +107,12 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 8.1,
+            vulnerability_type: "Cross-Site Scripting (XSS)".to_string(),
         },
         Alert {
             pluginid: "10021".to_string(),
-            alertRef: "10021".to_string(),
+            alert_ref: "10021".to_string(),
             alert: "X-Frame-Options Header Missing".to_string(),
             name: "X-Frame-Options Header Missing".to_string(),
             riskcode: "2".to_string(), // High
@@ -123,10 +129,12 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 7.4,
+            vulnerability_type: "Security Misconfiguration".to_string(),
         },
         Alert {
             pluginid: "10035".to_string(),
-            alertRef: "10035".to_string(),
+            alert_ref: "10035".to_string(),
             alert: "Strict-Transport-Security Header Missing".to_string(),
             name: "Strict-Transport-Security Header Missing".to_string(),
             riskcode: "1".to_string(), // Medium
@@ -143,10 +151,12 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: None,
                 },
             ],
+            cvss_score: 5.9,
+            vulnerability_type: "Sensitive Data Exposure".to_string(),
         },
         Alert {
             pluginid: "10037".to_string(),
-            alertRef: "10037".to_string(),
+            alert_ref: "10037".to_string(),
             alert: "Server Leaks Version Information".to_string(),
             name: "Server Leaks Version Information".to_string(),
             riskcode: "1".to_string(), // Medium
@@ -163,6 +173,8 @@ fn generate_mock_alerts(target: &str) -> Vec<Alert> {
                     evidence: Some("Server: Apache/2.4.41 (Ubuntu)".to_string()),
                 },
             ],
+            cvss_score: 5.3,
+            vulnerability_type: "Sensitive Data Exposure".to_string(),
         },
     ]
 }

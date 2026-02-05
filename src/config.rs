@@ -1,6 +1,6 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use anyhow::Result;
 
 /// Configuration for a security scan
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,18 +32,6 @@ pub struct AuthConfig {
 }
 
 impl ScanConfig {
-    pub fn default() -> Self {
-        Self {
-            zap: ZapConfig {
-                host: "http://localhost:8080".to_string(),
-                api_key: None,
-            },
-            policies: vec!["default".to_string()],
-            auth: None,
-            timeout: Some(300),
-        }
-    }
-
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config = serde_yaml::from_str(&content)?;
@@ -68,9 +56,23 @@ policies:
 #     username: user
 #     password: pass
 
-# Scan timeout in seconds
-timeout: 300
+# Scan timeout in seconds (default: 1800 = 30 minutes)
+timeout: 1800
 "#
         .to_string()
+    }
+}
+
+impl Default for ScanConfig {
+    fn default() -> Self {
+        Self {
+            zap: ZapConfig {
+                host: "http://localhost:8080".to_string(),
+                api_key: None,
+            },
+            policies: vec!["default".to_string()],
+            auth: None,
+            timeout: Some(1800), // 30 minutes default for real ZAP scans
+        }
     }
 }

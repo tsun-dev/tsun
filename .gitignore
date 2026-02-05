@@ -11,4 +11,6 @@ report.html
 report.json
 report.yaml
 report.xml
+*.sarif
+baseline.json
 *.pdf

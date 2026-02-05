@@ -208,7 +208,10 @@ impl RealZapClient {
             self.base_url.trim_end_matches('/')
         );
 
-        tracing::info!("ZAP API: Spidering target to populate site tree: {}", target);
+        tracing::info!(
+            "ZAP API: Spidering target to populate site tree: {}",
+            target
+        );
 
         let mut query_params = vec![("url", target.to_string())];
         if let Some(max) = max_urls {
@@ -227,7 +230,11 @@ impl RealZapClient {
         }
 
         let response: ScanIdResponse = serde_json::from_str(&body).map_err(|e| {
-            tracing::error!("JSON parse error in start_spider_scan: {} - Body: {}", e, body);
+            tracing::error!(
+                "JSON parse error in start_spider_scan: {} - Body: {}",
+                e,
+                body
+            );
             anyhow::anyhow!(
                 "Failed to parse ZAP spider response as JSON: {} - Body: {}",
                 e,
@@ -269,7 +276,11 @@ impl RealZapClient {
             }
 
             let response: SpiderStatusResponse = serde_json::from_str(&body).map_err(|e| {
-                tracing::error!("JSON parse error in wait_for_spider_scan: {} - Body: {}", e, body);
+                tracing::error!(
+                    "JSON parse error in wait_for_spider_scan: {} - Body: {}",
+                    e,
+                    body
+                );
                 anyhow::anyhow!(
                     "Failed to parse ZAP spider status response: {} - Body: {}",
                     e,
@@ -323,25 +334,24 @@ impl RealZapClient {
         let status = resp.status();
         let body = resp.text().await?;
 
-        let (status, body) = if !status.is_success()
-            && status.as_u16() == 400
-            && body.contains("\"url_not_found\"")
-        {
-            tracing::warn!(
-                "ZAP returned url_not_found; spidering target then retrying active scan"
-            );
-            let spider_id = self.start_spider_scan(target, max_urls).await?;
-            // Keep this short; it's just to populate the site tree.
-            self.wait_for_spider_scan(&spider_id, 60).await?;
+        let (status, body) =
+            if !status.is_success() && status.as_u16() == 400 && body.contains("\"url_not_found\"")
+            {
+                tracing::warn!(
+                    "ZAP returned url_not_found; spidering target then retrying active scan"
+                );
+                let spider_id = self.start_spider_scan(target, max_urls).await?;
+                // Keep this short; it's just to populate the site tree.
+                self.wait_for_spider_scan(&spider_id, 60).await?;
 
-            let request = self.client.get(&url).query(&query_params).build()?;
-            let resp = self.client.execute(request).await?;
-            let status = resp.status();
-            let body = resp.text().await?;
-            (status, body)
-        } else {
-            (status, body)
-        };
+                let request = self.client.get(&url).query(&query_params).build()?;
+                let resp = self.client.execute(request).await?;
+                let status = resp.status();
+                let body = resp.text().await?;
+                (status, body)
+            } else {
+                (status, body)
+            };
 
         if !status.is_success() {
             tracing::error!("ZAP API error: HTTP {} - Body: {}", status, body);

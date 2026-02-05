@@ -372,7 +372,8 @@ async fn run_scan(
         spinner.finish_with_message("✓ ZAP container started");
         Display::status("ZAP URL", &managed.zap_url);
 
-        let scanner = Scanner::new_with_managed_zap(target.clone(), config, &managed, effective_headers)?;
+        let scanner =
+            Scanner::new_with_managed_zap(target.clone(), config, &managed, effective_headers)?;
         _managed_zap = Some(managed);
         scanner
     } else {

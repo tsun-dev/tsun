@@ -68,7 +68,7 @@ impl ZapManaged {
         }
 
         info!("Stopping ZAP container: {}", self.container_id);
-        
+
         // Try graceful stop first
         let stop_result = Command::new("docker")
             .args(["stop", "--time", "10", &self.container_id])
@@ -101,16 +101,16 @@ impl Drop for ZapManaged {
             warn!("Keeping ZAP container running: {}", self.container_id);
             return;
         }
-        
+
         debug!("Drop called for ZapManaged, cleaning up container");
-        
+
         // Synchronous cleanup for Drop
         let _ = std::process::Command::new("docker")
             .args(["rm", "-f", &self.container_id])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
-        
+
         unregister_container(&self.container_id);
     }
 }

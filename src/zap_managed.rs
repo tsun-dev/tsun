@@ -4,6 +4,7 @@
 /// On drop, the container is cleaned up (unless --keep-zap is set for debugging).
 
 use anyhow::{anyhow, Context};
+use std::net::TcpListener;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
@@ -39,6 +40,49 @@ pub struct ManagedZapOptions {
     pub keep: bool,
 }
 
+fn try_reserve_port(port: u16) -> bool {
+    TcpListener::bind(("0.0.0.0", port)).is_ok()
+}
+
+fn pick_ephemeral_port() -> anyhow::Result<u16> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).context("failed to bind ephemeral port")?;
+    let port = listener
+        .local_addr()
+        .context("failed to read ephemeral port")?
+        .port();
+    Ok(port)
+}
+
+fn select_host_port(preferred: u16) -> anyhow::Result<(u16, bool)> {
+    if preferred == 0 {
+        return Ok((pick_ephemeral_port()?, true));
+    }
+
+    // If we can bind, the port is very likely available.
+    if try_reserve_port(preferred) {
+        return Ok((preferred, false));
+    }
+
+    warn!(
+        "Requested ZAP port {} appears to be in use; selecting a free port",
+        preferred
+    );
+
+    // Prefer an OS-selected ephemeral port to avoid races with naive scanning.
+    // We still do a best-effort bind check before returning.
+    for _ in 0..32 {
+        let candidate = pick_ephemeral_port()?;
+        if try_reserve_port(candidate) {
+            return Ok((candidate, true));
+        }
+    }
+
+    Err(anyhow!(
+        "failed to find an available port for managed ZAP (preferred {})",
+        preferred
+    ))
+}
+
 /// Verify Docker is available
 pub async fn ensure_docker() -> anyhow::Result<()> {
     let out = Command::new("docker")
@@ -62,6 +106,11 @@ pub async fn ensure_docker() -> anyhow::Result<()> {
 pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapManaged> {
     ensure_docker().await?;
 
+    let (host_port, changed) = select_host_port(opts.host_port)?;
+    if changed {
+        info!("Using ZAP port {}", host_port);
+    }
+
     // ZAP config: if no api_key specified, disable key requirement for dev ergonomics
     let key_cfg = if let Some(k) = &opts.api_key {
         format!("api.key={}", k)
@@ -69,7 +118,7 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
         "api.disablekey=true".to_string()
     };
 
-    let port_str = opts.host_port.to_string();
+    let port_str = host_port.to_string();
 
     // Using host network mode so ZAP can access external URLs directly
     // without proxy confusion between container and host localhost addresses
@@ -114,7 +163,7 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
     info!("Started managed ZAP container: {}", container_id);
 
     // Wait for ZAP to be ready (simple health check with retries)
-    let zap_url = format!("http://127.0.0.1:{}", opts.host_port);
+    let zap_url = format!("http://127.0.0.1:{}", host_port);
     wait_for_zap_ready(&zap_url, 90).await?;
 
     Ok(ZapManaged {
@@ -160,6 +209,7 @@ pub async fn stop_container(container_id: &str) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
 
     #[test]
     fn test_managed_zap_options_clone() {
@@ -181,5 +231,26 @@ mod tests {
 
         let without_key = "api.disablekey=true".to_string();
         assert!(without_key.contains("disablekey"));
+    }
+
+    #[test]
+    fn test_select_host_port_prefers_requested_when_free() {
+        // Pick a free port first.
+        let free_port = pick_ephemeral_port().expect("ephemeral port");
+        let (selected, changed) = select_host_port(free_port).expect("select");
+        assert_eq!(selected, free_port);
+        assert!(!changed);
+    }
+
+    #[test]
+    fn test_select_host_port_chooses_different_when_busy() {
+        // Reserve a port, then ensure we don't pick it.
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+        let busy_port = listener.local_addr().unwrap().port();
+
+        let (selected, changed) = select_host_port(busy_port).expect("select");
+        assert_ne!(selected, busy_port);
+        assert!(changed);
+        drop(listener);
     }
 }

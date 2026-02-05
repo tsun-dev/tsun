@@ -33,6 +33,7 @@ colored = "2.1"
 dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 urlencoding = "2.1"
+ctrlc = "3.4"
 maud = "0.26"
 url = "2.5"
 indicatif = "0.18.3"

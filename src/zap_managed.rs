@@ -6,9 +6,50 @@
 use anyhow::{anyhow, Context};
 use std::net::TcpListener;
 use std::process::Stdio;
+use std::sync::Mutex;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
+
+/// Global registry of active ZAP containers for cleanup on signal/panic
+static CONTAINER_REGISTRY: Mutex<Option<Vec<String>>> = Mutex::new(None);
+
+/// Register a container for cleanup
+fn register_container(container_id: &str) {
+    let mut registry = CONTAINER_REGISTRY.lock().unwrap();
+    if registry.is_none() {
+        *registry = Some(Vec::new());
+    }
+    if let Some(ref mut containers) = *registry {
+        containers.push(container_id.to_string());
+        debug!("Registered container for cleanup: {}", container_id);
+    }
+}
+
+/// Unregister a container (when properly cleaned up)
+fn unregister_container(container_id: &str) {
+    let mut registry = CONTAINER_REGISTRY.lock().unwrap();
+    if let Some(ref mut containers) = *registry {
+        containers.retain(|id| id != container_id);
+        debug!("Unregistered container: {}", container_id);
+    }
+}
+
+/// Cleanup all registered containers (called on signal/panic)
+pub fn cleanup_all_containers() {
+    let mut registry = CONTAINER_REGISTRY.lock().unwrap();
+    if let Some(ref mut containers) = *registry {
+        for container_id in containers.iter() {
+            warn!("Emergency cleanup of ZAP container: {}", container_id);
+            let _ = std::process::Command::new("docker")
+                .args(["rm", "-f", container_id])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+        containers.clear();
+    }
+}
 
 pub struct ZapManaged {
     pub zap_url: String,
@@ -18,17 +59,59 @@ pub struct ZapManaged {
     keep: bool,
 }
 
+impl ZapManaged {
+    /// Stop the ZAP container gracefully
+    pub async fn stop(&self) -> anyhow::Result<()> {
+        if self.keep {
+            info!("Keeping ZAP container running: {}", self.container_id);
+            return Ok(());
+        }
+
+        info!("Stopping ZAP container: {}", self.container_id);
+        
+        // Try graceful stop first
+        let stop_result = Command::new("docker")
+            .args(["stop", "--time", "10", &self.container_id])
+            .output()
+            .await;
+
+        match stop_result {
+            Ok(output) if output.status.success() => {
+                debug!("ZAP container stopped gracefully");
+            }
+            _ => {
+                warn!("Graceful stop failed, forcing removal");
+            }
+        }
+
+        // Force remove to ensure cleanup
+        let _ = Command::new("docker")
+            .args(["rm", "-f", &self.container_id])
+            .output()
+            .await;
+
+        unregister_container(&self.container_id);
+        Ok(())
+    }
+}
+
 impl Drop for ZapManaged {
     fn drop(&mut self) {
         if self.keep {
             warn!("Keeping ZAP container running: {}", self.container_id);
             return;
         }
+        
+        debug!("Drop called for ZapManaged, cleaning up container");
+        
+        // Synchronous cleanup for Drop
         let _ = std::process::Command::new("docker")
             .args(["rm", "-f", &self.container_id])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
+        
+        unregister_container(&self.container_id);
     }
 }
 
@@ -161,6 +244,9 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
     }
 
     info!("Started managed ZAP container: {}", container_id);
+
+    // Register for emergency cleanup
+    register_container(&container_id);
 
     // Wait for ZAP to be ready (simple health check with retries)
     let zap_url = format!("http://127.0.0.1:{}", host_port);

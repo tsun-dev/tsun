@@ -1,21 +1,21 @@
 [package]
-name = "rukn"
+name = "tsun"
 version = "0.2.0"
 edition = "2021"
 description = "Security scanning tool powered by OWASP ZAP with Docker-managed scans, scan profiles, and CI integration"
 authors = ["cWashington91"]
 license = "MIT"
-repository = "https://github.com/cWashington91/rukn"
+repository = "https://github.com/cWashington91/tsun"
 readme = "README.md"
 keywords = ["security", "zap", "owasp", "scanner", "ci"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
-name = "rukn"
+name = "tsun"
 path = "src/lib.rs"
 
 [[bin]]
-name = "rukn"
+name = "tsun"
 path = "src/main.rs"
 
 [dependencies]

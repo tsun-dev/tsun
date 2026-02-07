@@ -1,8 +1,8 @@
-# Rukn Pro - Licensing Guide
+# Tsun Pro - Licensing Guide
 
 ## Overview
 
-Rukn offers a **Free tier** for basic security scanning and a **Pro tier** for teams that need advanced features like baseline comparison, deep scanning, and noise reduction.
+Tsun offers a **Free tier** for basic security scanning and a **Pro tier** for teams that need advanced features like baseline comparison, deep scanning, and noise reduction.
 
 ## License Plans
 
@@ -36,7 +36,7 @@ Everything in Pro, plus:
 ### Check Current License Status
 
 ```bash
-rukn license status
+tsun license status
 ```
 
 Output:
@@ -63,13 +63,13 @@ After purchasing, you'll receive a license key. Activate it:
 
 ```bash
 # From string
-rukn license set "eyJwbGFuIjoicHJvIi..."
+tsun license set "eyJwbGFuIjoicHJvIi..."
 
 # From file
-rukn license set /path/to/license.txt
+tsun license set /path/to/license.txt
 ```
 
-Your license is stored locally at `~/.config/rukn/license` (XDG-compliant).
+Your license is stored locally at `~/.config/tsun/license` (XDG-compliant).
 
 ### CI/CD Integration
 
@@ -77,15 +77,15 @@ Store your license key as a secret and activate before scanning:
 
 #### GitHub Actions
 ```yaml
-- name: Activate Rukn Pro
-  if: ${{ secrets.ARETE_LICENSE != '' }}
-  run: echo "${{ secrets.ARETE_LICENSE }}" | rukn license set -
+- name: Activate Tsun Pro
+  if: ${{ secrets.TSUN_LICENSE != '' }}
+  run: echo "${{ secrets.TSUN_LICENSE }}" | tsun license set -
 ```
 
 #### GitLab CI
 ```yaml
 before_script:
-  - if [ -n "$ARETE_LICENSE" ]; then echo "$ARETE_LICENSE" | rukn license set -; fi
+  - if [ -n "$TSUN_LICENSE" ]; then echo "$TSUN_LICENSE" | tsun license set -; fi
 ```
 
 ## License Expiration
@@ -104,7 +104,7 @@ before_script:
 ### Example: Expired License
 
 ```bash
-rukn license status
+tsun license status
 ```
 
 Output:
@@ -123,17 +123,17 @@ Output:
 When you try to use a Pro feature without a valid license:
 
 ```bash
-rukn scan --target https://example.com --profile deep --format html
+tsun scan --target https://example.com --profile deep --format html
 ```
 
 Output:
 ```
-⚠️  Deep Profile is part of Rukn Pro
+⚠️  Deep Profile is part of Tsun Pro
 
 Deep profile enables thorough security scans for production releases.
 
-Upgrade: https://rukn.dev/pricing
-Or run: rukn license set <your_license>
+Upgrade: https://tsun.dev/pricing
+Or run: tsun license set <your_license>
 
 ℹ Falling back to 'ci' profile
 ```
@@ -142,7 +142,7 @@ The scan **continues with Free tier defaults** - no hard failures.
 
 ## Pricing
 
-> **Note**: Rukn Pro is currently in early access. To get a Pro license, open a GitHub issue with the "Pro License Request" label or check the README for the latest instructions.
+> **Note**: Tsun Pro is currently in early access. To get a Pro license, open a GitHub issue with the "Pro License Request" label or check the README for the latest instructions.
 
 ### For Individuals & Bootstrapped Startups
 - **Free**: $0/month - Perfect for side projects and CI basics
@@ -163,7 +163,7 @@ The biggest pain points in DAST adoption:
 1. **Noise in CI** - Pro's baseline comparison shows only NEW issues
 2. **Can't scan complex apps** - Pro's deep profile finds more vulnerabilities
 3. **Hard to share results** - Pro's HTML reports are executive-ready
-4. **Vendor lock-in** - Rukn is CLI-first, runs anywhere
+4. **Vendor lock-in** - Tsun is CLI-first, runs anywhere
 
 ## FAQ
 
@@ -199,11 +199,11 @@ Yes! For teams with 10+ developers, open a GitHub issue to discuss.
 - **Pro**: GitHub Issues with priority response
 - **Pro Plus**: GitHub Issues + direct email access to maintainer
 
-Rukn is founder-built and maintained. Questions or feedback? Open a GitHub issue.
+Tsun is founder-built and maintained. Questions or feedback? Open a GitHub issue.
 
 ## Next Steps
 
-1. Try Free tier: `rukn scan --target <url>`
-2. Check features: `rukn license status`
+1. Try Free tier: `tsun scan --target <url>`
+2. Check features: `tsun license status`
 3. See pricing: Check the README on GitHub
 4. Questions: Open a GitHub issue

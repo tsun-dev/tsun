@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rukn now generates beautiful, interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
+Tsun now generates beautiful, interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
 
 ## Features
 
@@ -53,7 +53,7 @@ Each vulnerability includes:
 
 Generate HTML report:
 ```bash
-rukn scan --target https://example.com --mock --format html --output report.html
+tsun scan --target https://example.com --mock --format html --output report.html
 ```
 
 ### Output

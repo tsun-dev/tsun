@@ -1,11 +1,11 @@
-# Rukn Security Scan - GitHub Actions Template
+# Tsun Security Scan - GitHub Actions Template
 # Free Tier: CI profile, JSON/SARIF output, basic exit gating
 # Pro adds: Baseline comparison, HTML reports, noise reduction
 #
-# NOTE: This is a TEMPLATE for users of Rukn, not meant to run on this repository itself.
-# Disable this workflow for the Rukn repository itself.
+# NOTE: This is a TEMPLATE for users of Tsun, not meant to run on this repository itself.
+# Disable this workflow for the Tsun repository itself.
 
-name: Rukn Security Scan (Template - Disabled)
+name: Tsun Security Scan (Template - Disabled)
 
 on:
   workflow_dispatch: # Manual trigger only
@@ -29,26 +29,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Install Rukn
+      - name: Install Tsun
         run: |
-          # Download and install latest Rukn release
-          # Visit https://github.com/cWashington91/rukn/releases for available versions
-          curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
-          chmod +x rukn
-          sudo mv rukn /usr/local/bin/
+          # Download and install latest Tsun release
+          # Visit https://github.com/cWashington91/tsun/releases for available versions
+          curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+          chmod +x tsun
+          sudo mv tsun /usr/local/bin/
       
       - name: Verify installation
-        run: rukn doctor
+        run: tsun doctor
       
       # Optional: Set Pro license from repository secret
       # - name: Activate Pro license
       #   if: ${{ secrets.RUKN_LICENSE != '' }}
-      #   run: echo "${{ secrets.RUKN_LICENSE }}" | rukn license set -
+      #   run: echo "${{ secrets.RUKN_LICENSE }}" | tsun license set -
       
       - name: Run security scan
         run: |
           # Free tier: CI profile, fast scans, JSON output
-          rukn scan \
+          tsun scan \
             --target ${{ vars.APP_URL || 'https://staging.example.com' }} \
             --profile ci \
             --format sarif \
@@ -56,7 +56,7 @@ jobs:
             --exit-on-severity high
         
         # Pro: Add baseline comparison to reduce noise
-        # rukn scan \
+        # tsun scan \
         #   --target ${{ vars.APP_URL }} \
         #   --profile deep \
         #   --baseline baseline.json \
@@ -82,7 +82,7 @@ jobs:
       # - name: Update baseline
       #   if: github.ref == 'refs/heads/main'
       #   run: |
-      #     rukn scan --target ${{ vars.APP_URL }} --format json --output baseline.json
+      #     tsun scan --target ${{ vars.APP_URL }} --format json --output baseline.json
       #     git add baseline.json
       #     git commit -m "Update security baseline [skip ci]"
       #     git push

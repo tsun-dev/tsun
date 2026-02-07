@@ -1,22 +1,22 @@
-# rukn Quick Reference
+# tsun Quick Reference
 
 ## Installation (End Users)
 
 **One-line install:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/cWashington91/rukn/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/cWashington91/tsun/main/install.sh | bash
 ```
 
 **Manual download:**
 ```bash
 # Linux x86_64
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
 
 # macOS (Intel)
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-x86_64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
 
 # macOS (Apple Silicon)
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-aarch64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
 ```
 
 ## Common Commands
@@ -25,31 +25,31 @@ curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-maco
 
 ```bash
 # Quick test (no Docker needed)
-rukn scan --target http://testphp.vulnweb.com --engine mock
+tsun scan --target http://testphp.vulnweb.com --engine mock
 
 # CI scan (15min, Docker required)
-rukn scan --target https://staging.example.com --engine zap --profile ci
+tsun scan --target https://staging.example.com --engine zap --profile ci
 
 # Deep scan (2hr)
-rukn scan --target https://staging.example.com --engine zap --profile deep
+tsun scan --target https://staging.example.com --engine zap --profile deep
 
 # Custom parameters
-rukn scan --target URL --engine zap --timeout 1200 --max-urls 500 --attack-strength medium
+tsun scan --target URL --engine zap --timeout 1200 --max-urls 500 --attack-strength medium
 
 # With auth headers
-rukn scan --target URL --engine zap --header "Authorization: Bearer TOKEN"
+tsun scan --target URL --engine zap --header "Authorization: Bearer TOKEN"
 
 # With cookies
-rukn scan --target URL --engine zap --cookies cookies.txt
+tsun scan --target URL --engine zap --cookies cookies.txt
 
 # SARIF for GitHub
-rukn scan --target URL --engine zap --format sarif --output report.sarif
+tsun scan --target URL --engine zap --format sarif --output report.sarif
 
 # Exit on high/critical findings
-rukn scan --target URL --engine zap --exit-on-severity high
+tsun scan --target URL --engine zap --exit-on-severity high
 
 # Baseline comparison
-rukn scan --target URL --engine zap --baseline baseline.json
+tsun scan --target URL --engine zap --baseline baseline.json
 ```
 
 ### Output Formats
@@ -71,12 +71,12 @@ rukn scan --target URL --engine zap --baseline baseline.json
 ## GitHub Actions Example
 
 ```yaml
-- name: Download rukn
-  run: curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
+- name: Download tsun
+  run: curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
 
 - name: Security scan
   run: |
-    ./rukn scan \
+    ./tsun scan \
       --target https://staging.yourapp.com \
       --engine zap \
       --profile ci \
@@ -116,12 +116,12 @@ git tag v0.2.0 && git push origin v0.2.0
 
 **Port conflict:**
 ```bash
-rukn scan --target URL --engine zap --zap-port 8081
+tsun scan --target URL --engine zap --zap-port 8081
 ```
 
 **Timeout:**
 ```bash
-rukn scan --target URL --engine zap --timeout 3600  # 1 hour
+tsun scan --target URL --engine zap --timeout 3600  # 1 hour
 ```
 
 **Cleanup ZAP containers:**
@@ -131,7 +131,7 @@ docker rm -f $(docker ps -aq --filter ancestor=zaproxy/zap-stable)
 
 **Verbose logging:**
 ```bash
-rukn scan --target URL --engine zap --verbose
+tsun scan --target URL --engine zap --verbose
 ```
 
 ## Architecture Overview
@@ -153,8 +153,8 @@ validation.rs    → Input validation
 
 ## Links
 
-- **Repo**: https://github.com/cWashington91/rukn
-- **Releases**: https://github.com/cWashington91/rukn/releases
-- **Issues**: https://github.com/cWashington91/rukn/issues
+- **Repo**: https://github.com/cWashington91/tsun
+- **Releases**: https://github.com/cWashington91/tsun/releases
+- **Issues**: https://github.com/cWashington91/tsun/issues
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md)

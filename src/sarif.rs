@@ -154,9 +154,9 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
         runs: vec![Run {
             tool: Tool {
                 driver: Driver {
-                    name: "rukn".to_string(),
+                    name: "tsun".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    information_uri: Some("https://github.com/christavo/rukn".to_string()),
+                    information_uri: Some("https://github.com/christavo/tsun".to_string()),
                     semantic_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 },
             },
@@ -241,7 +241,7 @@ mod tests {
 
         let sarif = generate_sarif_report(&report);
         assert!(sarif.contains("sarif-schema-2.1.0"));
-        assert!(sarif.contains("rukn"));
+        assert!(sarif.contains("tsun"));
         assert!(sarif.contains("\"results\""));
     }
 

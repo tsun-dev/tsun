@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rukn includes a comprehensive mock ZAP client for testing and development without requiring a running OWASP ZAP server.
+Tsun includes a comprehensive mock ZAP client for testing and development without requiring a running OWASP ZAP server.
 
 ## Usage
 
@@ -11,19 +11,19 @@ Rukn includes a comprehensive mock ZAP client for testing and development withou
 Run a mock scan using the `--mock` flag:
 
 ```bash
-rukn scan --target https://example.com --mock
+tsun scan --target https://example.com --mock
 ```
 
 With verbose output:
 
 ```bash
-rukn scan --target https://example.com --mock --verbose
+tsun scan --target https://example.com --mock --verbose
 ```
 
 Generate a report:
 
 ```bash
-rukn scan --target https://example.com --mock --output report.json --format json
+tsun scan --target https://example.com --mock --output report.json --format json
 ```
 
 ### What's Included in Mock Scans
@@ -61,7 +61,7 @@ The mock ZAP client generates realistic vulnerabilities for testing:
 Perfect for testing the CLI and report generation:
 
 ```bash
-rukn scan --target https://my-app.dev --mock --output test-report.json
+tsun scan --target https://my-app.dev --mock --output test-report.json
 ```
 
 ### Continuous Integration
@@ -71,7 +71,7 @@ Use mock mode in CI/CD pipelines:
 ```bash
 # GitHub Actions example
 - name: Run security scan (mock)
-  run: rukn scan --target ${{ env.TARGET_URL }} --mock --output results.json
+  run: tsun scan --target ${{ env.TARGET_URL }} --mock --output results.json
 ```
 
 ### Integration Testing

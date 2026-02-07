@@ -1,4 +1,4 @@
-//! License management for Rukn Pro features
+//! License management for Tsun Pro features
 //!
 //! This module implements a local-first licensing system with:
 //! - JWT-style signed tokens
@@ -100,7 +100,7 @@ impl License {
         // In production, use RSA or Ed25519 with embedded public key
 
         // Embedded public verification data (this would be a real public key)
-        const PUBLIC_KEY_HASH: &str = "rukn_public_key_v1";
+        const PUBLIC_KEY_HASH: &str = "tsun_public_key_v1";
 
         // Decode signature
         use base64::{engine::general_purpose, Engine as _};
@@ -178,10 +178,10 @@ pub fn get_license_path() -> Result<PathBuf> {
         ));
     };
 
-    let rukn_config = config_dir.join("rukn");
-    std::fs::create_dir_all(&rukn_config).context("Failed to create rukn config directory")?;
+    let tsun_config = config_dir.join("tsun");
+    std::fs::create_dir_all(&tsun_config).context("Failed to create tsun config directory")?;
 
-    Ok(rukn_config.join("license"))
+    Ok(tsun_config.join("license"))
 }
 
 /// Save license to disk
@@ -237,7 +237,7 @@ pub fn generate_sample_license(plan: Plan, days_valid: i64) -> String {
     let payload_b64 = general_purpose::STANDARD.encode(&payload);
 
     // Generate simple signature (matches verify_signature logic)
-    let expected_marker = format!("rukn_public_key_v1:{}", payload_b64);
+    let expected_marker = format!("tsun_public_key_v1:{}", payload_b64);
     let signature = format!("{:x}", md5::compute(expected_marker.as_bytes()));
     let signature_b64 = general_purpose::STANDARD.encode(signature.as_bytes());
 

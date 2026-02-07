@@ -21,7 +21,7 @@ use display::Display;
 use scanner::Scanner;
 
 #[derive(Parser)]
-#[command(name = "rukn")]
+#[command(name = "tsun")]
 #[command(about = "Security scanning tool powered by OWASP ZAP", long_about = None)]
 #[command(version)]
 struct Cli {
@@ -116,7 +116,7 @@ enum Commands {
     /// Generate a configuration template
     Init {
         /// Configuration file name
-        #[arg(short, long, default_value = "rukn.yaml")]
+        #[arg(short, long, default_value = "tsun.yaml")]
         config: String,
     },
     /// Check ZAP server connectivity
@@ -147,12 +147,12 @@ enum Commands {
         #[arg(long)]
         token: Option<String>,
     },
-    /// Manage Rukn Pro license
+    /// Manage Tsun Pro license
     License {
         #[command(subcommand)]
         action: LicenseAction,
     },
-    /// Run diagnostics to check Rukn setup
+    /// Run diagnostics to check Tsun setup
     Doctor,
 }
 
@@ -172,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env().add_directive("rukn=info".parse()?),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("tsun=info".parse()?),
         )
         .init();
 
@@ -548,7 +548,7 @@ async fn run_scan(
         Display::info(
             "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
         );
-        Display::info("Learn more: https://github.com/cWashington91/rukn#pricing");
+        Display::info("Learn more: https://github.com/cWashington91/tsun#pricing");
     } else {
         println!("📊 {}", features::format_license_summary(&license));
     }
@@ -634,7 +634,7 @@ async fn run_upload_sarif(
             "{}",
             features::get_upgrade_message(features::Feature::SarifUpload)
         );
-        return Err(anyhow::anyhow!("SARIF upload requires Rukn Pro"));
+        return Err(anyhow::anyhow!("SARIF upload requires Tsun Pro"));
     }
 
     // Basic validation
@@ -664,13 +664,13 @@ async fn run_upload_sarif(
         "commit_sha": commit_sha,
         "ref": ref_field,
         "sarif": content,
-        "tool_name": "rukn",
+        "tool_name": "tsun",
     });
 
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", gh_token))
-        .header("User-Agent", "rukn")
+        .header("User-Agent", "tsun")
         .header("Accept", "application/vnd.github+json")
         .json(&body)
         .send()
@@ -768,7 +768,7 @@ fn run_license_status() -> anyhow::Result<()> {
         license::LicenseStatus::Expired => {
             Display::error("License has expired");
             Display::info(
-                "Pro features are disabled. See: https://github.com/cWashington91/rukn#pricing",
+                "Pro features are disabled. See: https://github.com/cWashington91/tsun#pricing",
             );
         }
     }
@@ -804,7 +804,7 @@ fn run_license_status() -> anyhow::Result<()> {
 }
 
 async fn run_doctor() -> anyhow::Result<()> {
-    Display::section_header("Rukn Doctor - System Diagnostics");
+    Display::section_header("Tsun Doctor - System Diagnostics");
 
     let mut checks_passed = 0;
     let mut checks_failed = 0;
@@ -922,7 +922,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_passed,
             checks_passed + checks_failed
         ));
-        Display::info("You're ready to run: rukn scan --target <url>");
+        Display::info("You're ready to run: tsun scan --target <url>");
     } else {
         Display::warning(&format!(
             "Some checks failed ({} passed, {} failed)",

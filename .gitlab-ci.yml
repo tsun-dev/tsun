@@ -1,11 +1,11 @@
-# Rukn Security Scan - GitLab CI Template
+# Tsun Security Scan - GitLab CI Template
 # Free Tier: CI profile, JSON/SARIF output, basic exit gating
 # Pro adds: Baseline comparison, HTML reports, noise reduction
 
 stages:
   - security
 
-rukn-security-scan:
+tsun-security-scan:
   stage: security
   image: docker:24-dind
   
@@ -19,19 +19,19 @@ rukn-security-scan:
     APP_URL: "https://staging.example.com"
   
   before_script:
-    # Install Rukn
+    # Install Tsun
     - apk add --no-cache curl bash
-    - curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64 -o /usr/local/bin/rukn
-    - chmod +x /usr/local/bin/rukn
-    - rukn doctor
+    - curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64 -o /usr/local/bin/tsun
+    - chmod +x /usr/local/bin/tsun
+    - tsun doctor
     
     # Optional: Activate Pro license
-    # - if [ -n "$ARETE_LICENSE" ]; then echo "$ARETE_LICENSE" | rukn license set -; fi
+    # - if [ -n "$TSUN_LICENSE" ]; then echo "$TSUN_LICENSE" | tsun license set -; fi
   
   script:
     # Free tier: CI profile, fast scans (10-15 min)
     - |
-      rukn scan \
+      tsun scan \
         --target $APP_URL \
         --profile ci \
         --engine zap \
@@ -41,7 +41,7 @@ rukn-security-scan:
     
     # Pro tier: Deep profile with baseline comparison
     # - |
-    #   rukn scan \
+    #   tsun scan \
     #     --target $APP_URL \
     #     --profile deep \
     #     --baseline baseline.json \
@@ -67,13 +67,13 @@ rukn-security-scan:
     - if: $CI_PIPELINE_SOURCE == "schedule" # Weekly scans
 
 # Pro-only: Baseline update job
-# rukn-baseline-update:
+# tsun-baseline-update:
 #   stage: security
 #   image: docker:24-dind
 #   services:
 #     - docker:24-dind
 #   script:
-#     - rukn scan --target $APP_URL --format json --output baseline.json
+#     - tsun scan --target $APP_URL --format json --output baseline.json
 #   artifacts:
 #     paths:
 #       - baseline.json
@@ -81,7 +81,7 @@ rukn-security-scan:
 #     - main
 #   when: manual
 
-# What Rukn Pro unlocks:
+# What Tsun Pro unlocks:
 # ✓ Baseline comparison - Show only NEW vulnerabilities in MRs
 # ✓ Deep profile - Thorough scans (60-120 min) for releases
 # ✓ HTML reports - Beautiful vulnerability documentation
@@ -89,5 +89,5 @@ rukn-security-scan:
 # ✓ Noise reduction - Ignore known false positives
 # ✓ CI reliability - Focus on actionable findings
 #
-# See pricing: https://github.com/cWashington91/rukn#pricing
+# See pricing: https://github.com/cWashington91/tsun#pricing
 # Questions? Open a GitHub issue

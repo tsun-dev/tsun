@@ -1,5 +1,5 @@
 #!/bin/bash
-# Setup git hooks for Rukn development
+# Setup git hooks for Tsun development
 # Run this after cloning the repository
 
 set -e
@@ -8,13 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOOKS_DIR="$REPO_ROOT/.git/hooks"
 
-echo "🔧 Setting up git hooks for Rukn..."
+echo "🔧 Setting up git hooks for Tsun..."
 
 # Install pre-push hook
 echo "  → Installing pre-push hook..."
 cat > "$HOOKS_DIR/pre-push" << 'EOF'
 #!/bin/bash
-# Pre-push hook for Rukn
+# Pre-push hook for Tsun
 # Ensures code quality before pushing to remote
 
 set -e

@@ -1,11 +1,11 @@
-//! Feature gating for Rukn Pro
+//! Feature gating for Tsun Pro
 //!
 //! This module defines which features are available in Free vs Pro tiers
 //! and provides helpers to check feature availability.
 
 use crate::license::License;
 
-/// Features available in Rukn
+/// Features available in Tsun
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)] // Some variants reserved for future use
 pub enum Feature {
@@ -106,7 +106,7 @@ pub fn get_upgrade_message(feature: Feature) -> String {
     }
 
     format!(
-        "\n⚠️  {} is part of Rukn Pro\n\n{}\n\nGet Pro: https://github.com/cWashington91/rukn#pricing\nOr run: rukn license set <your_license>\n",
+        "\n⚠️  {} is part of Tsun Pro\n\n{}\n\nGet Pro: https://github.com/cWashington91/tsun#pricing\nOr run: tsun license set <your_license>\n",
         feature.name(),
         feature.value_message()
     )
@@ -201,7 +201,7 @@ mod tests {
     fn test_upgrade_message_format() {
         let msg = get_upgrade_message(Feature::BaselineComparison);
         assert!(msg.contains("Baseline Comparison"));
-        assert!(msg.contains("rukn license set"));
+        assert!(msg.contains("tsun license set"));
         assert!(msg.contains("noise"));
     }
 

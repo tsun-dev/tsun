@@ -39,7 +39,7 @@ impl ScanConfig {
     }
 
     pub fn template() -> String {
-        r#"# Rukn Security Scan Configuration
+        r#"# Tsun Security Scan Configuration
 
 zap:
   host: http://localhost:8080

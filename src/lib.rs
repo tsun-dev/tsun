@@ -1,6 +1,6 @@
-//! Rukn - Security scanning tool powered by OWASP ZAP
+//! Tsun - Security scanning tool powered by OWASP ZAP
 //!
-//! This library provides the core scanning functionality for the Rukn security scanner.
+//! This library provides the core scanning functionality for the Tsun security scanner.
 
 pub mod auth;
 pub mod config;

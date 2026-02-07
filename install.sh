@@ -1,6 +1,6 @@
 #!/bin/bash
-# arete installer script
-# Usage: curl -sSL https://raw.githubusercontent.com/cWashington91/arete/main/install.sh | bash
+# tsun installer script
+# Usage: curl -sSL https://raw.githubusercontent.com/cWashington91/tsun/main/install.sh | bash
 
 set -e
 
@@ -30,10 +30,10 @@ case "$OS" in
 esac
 
 echo "Detected platform: $PLATFORM"
-echo "Installing arete..."
+echo "Installing tsun..."
 
 # Download and extract
-DOWNLOAD_URL="https://github.com/cWashington91/arete/releases/latest/download/arete-${PLATFORM}.tar.gz"
+DOWNLOAD_URL="https://github.com/cWashington91/tsun/releases/latest/download/tsun-${PLATFORM}.tar.gz"
 
 echo "Downloading from: $DOWNLOAD_URL"
 curl -sSL "$DOWNLOAD_URL" | tar xz
@@ -45,11 +45,11 @@ if [ ! -w "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
 fi
 
-mv arete "$INSTALL_DIR/"
-chmod +x "$INSTALL_DIR/arete"
+mv tsun "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/tsun"
 
 echo ""
-echo "✓ arete installed to $INSTALL_DIR/arete"
+echo "✓ tsun installed to $INSTALL_DIR/tsun"
 echo ""
 
 # Check if directory is in PATH
@@ -61,15 +61,15 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
 fi
 
 # Verify installation
-if command -v arete &> /dev/null; then
+if command -v tsun &> /dev/null; then
     echo "Installation verified:"
-    arete --version
+    tsun --version
 else
-    echo "⚠ arete installed but not in PATH. Run: $INSTALL_DIR/arete --version"
+    echo "⚠ tsun installed but not in PATH. Run: $INSTALL_DIR/tsun --version"
 fi
 
 echo ""
 echo "Get started:"
-echo "  arete scan --target http://testphp.vulnweb.com --engine mock"
+echo "  tsun scan --target http://testphp.vulnweb.com --engine mock"
 echo ""
-echo "Docs: https://github.com/cWashington91/arete"
+echo "Docs: https://github.com/cWashington91/tsun"

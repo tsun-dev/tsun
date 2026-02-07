@@ -1,4 +1,4 @@
-# rukn
+# tsun
 
 A security scanning tool powered by OWASP ZAP for continuous application security testing.
 
@@ -18,27 +18,27 @@ A security scanning tool powered by OWASP ZAP for continuous application securit
 
 ### Download Pre-built Binaries (Recommended)
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/cWashington91/rukn/releases):
+Download the latest release for your platform from [GitHub Releases](https://github.com/cWashington91/tsun/releases):
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
-sudo mv rukn /usr/local/bin/
-rukn --version
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+sudo mv tsun /usr/local/bin/
+tsun --version
 ```
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-x86_64.tar.gz | tar xz
-sudo mv rukn /usr/local/bin/
-rukn --version
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
+sudo mv tsun /usr/local/bin/
+tsun --version
 ```
 
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-aarch64.tar.gz | tar xz
-sudo mv rukn /usr/local/bin/
-rukn --version
+curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
+sudo mv tsun /usr/local/bin/
+tsun --version
 ```
 
 ### Build from Source
@@ -46,32 +46,32 @@ rukn --version
 Requires Rust 1.70+:
 
 ```bash
-git clone https://github.com/cWashington91/rukn.git
-cd rukn
+git clone https://github.com/cWashington91/tsun.git
+cd tsun
 cargo build --release
-sudo cp target/release/rukn /usr/local/bin/
+sudo cp target/release/tsun /usr/local/bin/
 ```
 
 ## Quick Start
 
 ### Your First Scan (Mock Mode)
 
-Test rukn without ZAP server:
+Test tsun without ZAP server:
 
 ```bash
-rukn scan --target http://testphp.vulnweb.com --engine mock --format html --output report.html
+tsun scan --target http://testphp.vulnweb.com --engine mock --format html --output report.html
 ```
 
 ### Real Scan with Docker-Managed ZAP
 
-rukn automatically starts and manages a ZAP Docker container:
+tsun automatically starts and manages a ZAP Docker container:
 
 ```bash
 # CI profile: fast 15-minute scan
-rukn scan --target http://testphp.vulnweb.com --engine zap --profile ci
+tsun scan --target http://testphp.vulnweb.com --engine zap --profile ci
 
 # Deep profile: thorough 2-hour scan
-rukn scan --target http://testphp.vulnweb.com --engine zap --profile deep
+tsun scan --target http://testphp.vulnweb.com --engine zap --profile deep
 ```
 
 **Requirements for `--engine zap`:**
@@ -82,22 +82,22 @@ rukn scan --target http://testphp.vulnweb.com --engine zap --profile deep
 
 ```bash
 # Generate HTML report
-rukn scan --target https://staging.example.com --engine zap --profile ci --format html --output security-report.html
+tsun scan --target https://staging.example.com --engine zap --profile ci --format html --output security-report.html
 
 # SARIF for GitHub Code Scanning
-rukn scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
+tsun scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
 
 # Exit with error if high/critical findings
-rukn scan --target https://staging.example.com --engine zap --profile ci --exit-on-severity high
+tsun scan --target https://staging.example.com --engine zap --profile ci --exit-on-severity high
 
 # Custom scan parameters
-rukn scan --target https://staging.example.com --engine zap --timeout 600 --max-urls 100 --attack-strength medium
+tsun scan --target https://staging.example.com --engine zap --timeout 600 --max-urls 100 --attack-strength medium
 
 # With authentication headers
-rukn scan --target https://staging.example.com --engine zap --header "Authorization: Bearer TOKEN"
+tsun scan --target https://staging.example.com --engine zap --header "Authorization: Bearer TOKEN"
 
 # With cookies file
-rukn scan --target https://staging.example.com --engine zap --cookies cookies.txt
+tsun scan --target https://staging.example.com --engine zap --cookies cookies.txt
 ```
 
 ## CI Integration (GitHub Actions)
@@ -119,14 +119,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download rukn
+      - name: Download tsun
         run: |
-          curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
-          chmod +x rukn
+          curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+          chmod +x tsun
       
       - name: Run security scan
         run: |
-          ./rukn scan \
+          ./tsun scan \
             --target https://staging.yourapp.com \
             --engine zap \
             --profile ci \
@@ -157,10 +157,10 @@ security-scan:
     - docker:24-dind
   before_script:
     - apk add --no-cache curl
-    - curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
-    - chmod +x rukn
+    - curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+    - chmod +x tsun
   script:
-    - ./rukn scan --target https://staging.yourapp.com --engine zap --profile ci --format json --output gl-security-report.json
+    - ./tsun scan --target https://staging.yourapp.com --engine zap --profile ci --format json --output gl-security-report.json
   artifacts:
     reports:
       dependency_scanning: gl-security-report.json
@@ -178,7 +178,7 @@ security-scan:
 
 **Override individual settings:**
 ```bash
-rukn scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-strength medium
+tsun scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-strength medium
 ```
 
 ## Usage
@@ -187,35 +187,35 @@ rukn scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-stren
 
 ```bash
 # Docker-managed ZAP (recommended)
-rukn scan --target https://example.com --engine zap --profile ci
+tsun scan --target https://example.com --engine zap --profile ci
 
 # Mock mode (testing without ZAP)
-rukn scan --target https://example.com --engine mock
+tsun scan --target https://example.com --engine mock
 
 # With custom configuration file
-rukn scan --target https://example.com --engine zap --config rukn.yaml
+tsun scan --target https://example.com --engine zap --config tsun.yaml
 
 # Generate HTML report
-rukn scan --target https://example.com --engine zap --output report.html --format html
+tsun scan --target https://example.com --engine zap --output report.html --format html
 
 # Verbose logging
-rukn scan --target https://example.com --engine zap --verbose
+tsun scan --target https://example.com --engine zap --verbose
 ```
 
 ### Authentication Examples
 
 ```bash
 # Static headers
-rukn scan --target https://example.com --engine zap --header "Authorization: Bearer TOKEN"
+tsun scan --target https://example.com --engine zap --header "Authorization: Bearer TOKEN"
 
 # Multiple headers
-rukn scan --target https://example.com --engine zap --header "X-API-Key: key123,Authorization: Bearer TOKEN"
+tsun scan --target https://example.com --engine zap --header "X-API-Key: key123,Authorization: Bearer TOKEN"
 
 # Cookies from file (Netscape format or JSON)
-rukn scan --target https://example.com --engine zap --cookies cookies.txt
+tsun scan --target https://example.com --engine zap --cookies cookies.txt
 
 # Pre-scan login command (generates cookies)
-rukn scan --target https://example.com --engine zap --login-command "curl -c cookies.txt https://example.com/login -d 'user=admin&pass=secret'" --cookies cookies.txt
+tsun scan --target https://example.com --engine zap --login-command "curl -c cookies.txt https://example.com/login -d 'user=admin&pass=secret'" --cookies cookies.txt
 ```
 
 ### Baseline Comparison
@@ -224,10 +224,10 @@ Track vulnerability changes over time:
 
 ```bash
 # First scan - establish baseline
-rukn scan --target https://staging.example.com --engine zap --output baseline.json --format json
+tsun scan --target https://staging.example.com --engine zap --output baseline.json --format json
 
 # Later scan - compare against baseline
-rukn scan --target https://staging.example.com --engine zap --baseline baseline.json --exit-on-severity high
+tsun scan --target https://staging.example.com --engine zap --baseline baseline.json --exit-on-severity high
 ```
 
 The comparison report shows:
@@ -238,19 +238,19 @@ The comparison report shows:
 ### Generate Configuration Template
 
 ```bash
-rukn init --config rukn.yaml
+tsun init --config tsun.yaml
 ```
 
 ### Check ZAP Server Status
 
 ```bash
 # Check external ZAP server
-rukn status --host http://localhost:8080
+tsun status --host http://localhost:8080
 ```
 
 ## Configuration
 
-Create an `rukn.yaml` file to configure defaults:
+Create an `tsun.yaml` file to configure defaults:
 
 ```yaml
 zap:
@@ -264,7 +264,7 @@ policies:
 timeout: 1800
 ```
 
-**Note:** When using `--engine zap`, rukn manages ZAP automatically via Docker. The `host` in config is only used with external ZAP servers.
+**Note:** When using `--engine zap`, tsun manages ZAP automatically via Docker. The `host` in config is only used with external ZAP servers.
 
 ## Requirements
 
@@ -274,7 +274,7 @@ timeout: 1800
 
 ## Architecture
 
-rukn uses a modular architecture for flexibility and testability:
+tsun uses a modular architecture for flexibility and testability:
 
 - **[src/main.rs](src/main.rs)**: CLI argument parsing and command orchestration
 - **[src/scanner.rs](src/scanner.rs)**: Core scanning logic and ZAP client coordination
@@ -291,11 +291,11 @@ rukn uses a modular architecture for flexibility and testability:
 
 ## SARIF & GitHub Code Scanning
 
-rukn exports SARIF 2.1.0 reports compatible with GitHub Code Scanning:
+tsun exports SARIF 2.1.0 reports compatible with GitHub Code Scanning:
 
 **Generate SARIF:**
 ```bash
-rukn scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
+tsun scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
 ```
 
 **Upload to GitHub (via GitHub Actions):**
@@ -308,7 +308,7 @@ rukn scan --target https://staging.example.com --engine zap --profile ci --forma
 
 **Manual upload (requires GitHub token):**
 ```bash
-rukn upload-sarif \
+tsun upload-sarif \
   --file report.sarif \
   --repo owner/repo \
   --commit $GITHUB_SHA \
@@ -322,17 +322,17 @@ Findings will appear in:
 
 ## ZAP Container Cleanup
 
-rukn automatically cleans up ZAP containers in all scenarios to prevent port conflicts:
+tsun automatically cleans up ZAP containers in all scenarios to prevent port conflicts:
 
 - **Normal completion**: Graceful 10-second shutdown, then force removal
 - **Ctrl+C / SIGINT**: Emergency cleanup, exit code 130
 - **Panic / crash**: Emergency cleanup before exiting
 - **Startup failure**: Immediate cleanup if ZAP container fails health checks
 
-Containers are tracked in a global registry and removed even if rukn is interrupted. Use `--keep-zap` flag to keep the container running for debugging:
+Containers are tracked in a global registry and removed even if tsun is interrupted. Use `--keep-zap` flag to keep the container running for debugging:
 
 ```bash
-rukn scan --target URL --engine zap --keep-zap
+tsun scan --target URL --engine zap --keep-zap
 # Container stays running after scan - useful for inspecting ZAP UI or logs
 docker ps  # See the running container
 docker logs <container_id>  # View ZAP logs
@@ -349,8 +349,8 @@ docker ps --filter ancestor=owasp/zap2docker-stable
 
 **"Port 8080 already in use"**
 ```bash
-# rukn automatically selects a free port
-rukn scan --target URL --engine zap --zap-port 8080
+# tsun automatically selects a free port
+tsun scan --target URL --engine zap --zap-port 8080
 # Will use an ephemeral port if 8080 is busy
 ```
 
@@ -364,10 +364,10 @@ sudo usermod -aG docker $USER
 **Scan times out before completion**
 ```bash
 # Increase timeout
-rukn scan --target URL --engine zap --timeout 3600  # 1 hour
+tsun scan --target URL --engine zap --timeout 3600  # 1 hour
 
 # Or use deep profile (2 hours)
-rukn scan --target URL --engine zap --profile deep
+tsun scan --target URL --engine zap --profile deep
 ```
 
 **ZAP container not cleaned up**
@@ -378,7 +378,7 @@ docker rm -f $(docker ps -aq --filter ancestor=zaproxy/zap-stable)
 
 ## Pricing
 
-Rukn is **free and open source** for basic security scanning.
+Tsun is **free and open source** for basic security scanning.
 
 **Pro features** (baseline comparison, deep scans, HTML reports) are available for teams that need them. See [LICENSING.md](LICENSING.md) for details.
 

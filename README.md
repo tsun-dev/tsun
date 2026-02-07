@@ -403,10 +403,20 @@ Rukn is **free and open source** for basic security scanning.
 Contributions welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
+3. **Run the git hook setup script:**
+   ```bash
+   ./scripts/setup-git-hooks.sh
+   ```
+4. Make your changes following these quality checks:
+   ```bash
+   cargo fmt                                              # Format code
+   cargo clippy --all-targets --all-features -- -D warnings  # Lint
+   cargo test --lib                                       # Run tests
+   ```
+5. Add tests for new functionality
+6. Submit a pull request
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for design details.
+The pre-push hook will automatically run these checks before each push. See [ARCHITECTURE.md](ARCHITECTURE.md) for design details.
 
 ## License
 

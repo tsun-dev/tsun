@@ -1,4 +1,4 @@
-# arete
+# rukn
 
 A security scanning tool powered by OWASP ZAP for continuous application security testing.
 
@@ -18,27 +18,27 @@ A security scanning tool powered by OWASP ZAP for continuous application securit
 
 ### Download Pre-built Binaries (Recommended)
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/cWashington91/arete/releases):
+Download the latest release for your platform from [GitHub Releases](https://github.com/cWashington91/rukn/releases):
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-linux-x86_64.tar.gz | tar xz
-sudo mv arete /usr/local/bin/
-arete --version
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
+sudo mv rukn /usr/local/bin/
+rukn --version
 ```
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-macos-x86_64.tar.gz | tar xz
-sudo mv arete /usr/local/bin/
-arete --version
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-x86_64.tar.gz | tar xz
+sudo mv rukn /usr/local/bin/
+rukn --version
 ```
 
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-macos-aarch64.tar.gz | tar xz
-sudo mv arete /usr/local/bin/
-arete --version
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-aarch64.tar.gz | tar xz
+sudo mv rukn /usr/local/bin/
+rukn --version
 ```
 
 ### Build from Source
@@ -46,32 +46,32 @@ arete --version
 Requires Rust 1.70+:
 
 ```bash
-git clone https://github.com/cWashington91/arete.git
-cd arete
+git clone https://github.com/cWashington91/rukn.git
+cd rukn
 cargo build --release
-sudo cp target/release/arete /usr/local/bin/
+sudo cp target/release/rukn /usr/local/bin/
 ```
 
 ## Quick Start
 
 ### Your First Scan (Mock Mode)
 
-Test arete without ZAP server:
+Test rukn without ZAP server:
 
 ```bash
-arete scan --target http://testphp.vulnweb.com --engine mock --format html --output report.html
+rukn scan --target http://testphp.vulnweb.com --engine mock --format html --output report.html
 ```
 
 ### Real Scan with Docker-Managed ZAP
 
-arete automatically starts and manages a ZAP Docker container:
+rukn automatically starts and manages a ZAP Docker container:
 
 ```bash
 # CI profile: fast 15-minute scan
-arete scan --target http://testphp.vulnweb.com --engine zap --profile ci
+rukn scan --target http://testphp.vulnweb.com --engine zap --profile ci
 
 # Deep profile: thorough 2-hour scan
-arete scan --target http://testphp.vulnweb.com --engine zap --profile deep
+rukn scan --target http://testphp.vulnweb.com --engine zap --profile deep
 ```
 
 **Requirements for `--engine zap`:**
@@ -82,22 +82,22 @@ arete scan --target http://testphp.vulnweb.com --engine zap --profile deep
 
 ```bash
 # Generate HTML report
-arete scan --target https://staging.example.com --engine zap --profile ci --format html --output security-report.html
+rukn scan --target https://staging.example.com --engine zap --profile ci --format html --output security-report.html
 
 # SARIF for GitHub Code Scanning
-arete scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
+rukn scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
 
 # Exit with error if high/critical findings
-arete scan --target https://staging.example.com --engine zap --profile ci --exit-on-severity high
+rukn scan --target https://staging.example.com --engine zap --profile ci --exit-on-severity high
 
 # Custom scan parameters
-arete scan --target https://staging.example.com --engine zap --timeout 600 --max-urls 100 --attack-strength medium
+rukn scan --target https://staging.example.com --engine zap --timeout 600 --max-urls 100 --attack-strength medium
 
 # With authentication headers
-arete scan --target https://staging.example.com --engine zap --header "Authorization: Bearer TOKEN"
+rukn scan --target https://staging.example.com --engine zap --header "Authorization: Bearer TOKEN"
 
 # With cookies file
-arete scan --target https://staging.example.com --engine zap --cookies cookies.txt
+rukn scan --target https://staging.example.com --engine zap --cookies cookies.txt
 ```
 
 ## CI Integration (GitHub Actions)
@@ -119,14 +119,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download arete
+      - name: Download rukn
         run: |
-          curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-linux-x86_64.tar.gz | tar xz
-          chmod +x arete
+          curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
+          chmod +x rukn
       
       - name: Run security scan
         run: |
-          ./arete scan \
+          ./rukn scan \
             --target https://staging.yourapp.com \
             --engine zap \
             --profile ci \
@@ -157,10 +157,10 @@ security-scan:
     - docker:24-dind
   before_script:
     - apk add --no-cache curl
-    - curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-linux-x86_64.tar.gz | tar xz
-    - chmod +x arete
+    - curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
+    - chmod +x rukn
   script:
-    - ./arete scan --target https://staging.yourapp.com --engine zap --profile ci --format json --output gl-security-report.json
+    - ./rukn scan --target https://staging.yourapp.com --engine zap --profile ci --format json --output gl-security-report.json
   artifacts:
     reports:
       dependency_scanning: gl-security-report.json
@@ -178,7 +178,7 @@ security-scan:
 
 **Override individual settings:**
 ```bash
-arete scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-strength medium
+rukn scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-strength medium
 ```
 
 ## Usage
@@ -187,35 +187,35 @@ arete scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-stre
 
 ```bash
 # Docker-managed ZAP (recommended)
-arete scan --target https://example.com --engine zap --profile ci
+rukn scan --target https://example.com --engine zap --profile ci
 
 # Mock mode (testing without ZAP)
-arete scan --target https://example.com --engine mock
+rukn scan --target https://example.com --engine mock
 
 # With custom configuration file
-arete scan --target https://example.com --engine zap --config arete.yaml
+rukn scan --target https://example.com --engine zap --config rukn.yaml
 
 # Generate HTML report
-arete scan --target https://example.com --engine zap --output report.html --format html
+rukn scan --target https://example.com --engine zap --output report.html --format html
 
 # Verbose logging
-arete scan --target https://example.com --engine zap --verbose
+rukn scan --target https://example.com --engine zap --verbose
 ```
 
 ### Authentication Examples
 
 ```bash
 # Static headers
-arete scan --target https://example.com --engine zap --header "Authorization: Bearer TOKEN"
+rukn scan --target https://example.com --engine zap --header "Authorization: Bearer TOKEN"
 
 # Multiple headers
-arete scan --target https://example.com --engine zap --header "X-API-Key: key123,Authorization: Bearer TOKEN"
+rukn scan --target https://example.com --engine zap --header "X-API-Key: key123,Authorization: Bearer TOKEN"
 
 # Cookies from file (Netscape format or JSON)
-arete scan --target https://example.com --engine zap --cookies cookies.txt
+rukn scan --target https://example.com --engine zap --cookies cookies.txt
 
 # Pre-scan login command (generates cookies)
-arete scan --target https://example.com --engine zap --login-command "curl -c cookies.txt https://example.com/login -d 'user=admin&pass=secret'" --cookies cookies.txt
+rukn scan --target https://example.com --engine zap --login-command "curl -c cookies.txt https://example.com/login -d 'user=admin&pass=secret'" --cookies cookies.txt
 ```
 
 ### Baseline Comparison
@@ -224,10 +224,10 @@ Track vulnerability changes over time:
 
 ```bash
 # First scan - establish baseline
-arete scan --target https://staging.example.com --engine zap --output baseline.json --format json
+rukn scan --target https://staging.example.com --engine zap --output baseline.json --format json
 
 # Later scan - compare against baseline
-arete scan --target https://staging.example.com --engine zap --baseline baseline.json --exit-on-severity high
+rukn scan --target https://staging.example.com --engine zap --baseline baseline.json --exit-on-severity high
 ```
 
 The comparison report shows:
@@ -238,19 +238,19 @@ The comparison report shows:
 ### Generate Configuration Template
 
 ```bash
-arete init --config arete.yaml
+rukn init --config rukn.yaml
 ```
 
 ### Check ZAP Server Status
 
 ```bash
 # Check external ZAP server
-arete status --host http://localhost:8080
+rukn status --host http://localhost:8080
 ```
 
 ## Configuration
 
-Create an `arete.yaml` file to configure defaults:
+Create an `rukn.yaml` file to configure defaults:
 
 ```yaml
 zap:
@@ -264,7 +264,7 @@ policies:
 timeout: 1800
 ```
 
-**Note:** When using `--engine zap`, arete manages ZAP automatically via Docker. The `host` in config is only used with external ZAP servers.
+**Note:** When using `--engine zap`, rukn manages ZAP automatically via Docker. The `host` in config is only used with external ZAP servers.
 
 ## Requirements
 
@@ -274,7 +274,7 @@ timeout: 1800
 
 ## Architecture
 
-arete uses a modular architecture for flexibility and testability:
+rukn uses a modular architecture for flexibility and testability:
 
 - **[src/main.rs](src/main.rs)**: CLI argument parsing and command orchestration
 - **[src/scanner.rs](src/scanner.rs)**: Core scanning logic and ZAP client coordination
@@ -291,11 +291,11 @@ arete uses a modular architecture for flexibility and testability:
 
 ## SARIF & GitHub Code Scanning
 
-arete exports SARIF 2.1.0 reports compatible with GitHub Code Scanning:
+rukn exports SARIF 2.1.0 reports compatible with GitHub Code Scanning:
 
 **Generate SARIF:**
 ```bash
-arete scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
+rukn scan --target https://staging.example.com --engine zap --profile ci --format sarif --output report.sarif
 ```
 
 **Upload to GitHub (via GitHub Actions):**
@@ -308,7 +308,7 @@ arete scan --target https://staging.example.com --engine zap --profile ci --form
 
 **Manual upload (requires GitHub token):**
 ```bash
-arete upload-sarif \
+rukn upload-sarif \
   --file report.sarif \
   --repo owner/repo \
   --commit $GITHUB_SHA \
@@ -322,17 +322,17 @@ Findings will appear in:
 
 ## ZAP Container Cleanup
 
-arete automatically cleans up ZAP containers in all scenarios to prevent port conflicts:
+rukn automatically cleans up ZAP containers in all scenarios to prevent port conflicts:
 
 - **Normal completion**: Graceful 10-second shutdown, then force removal
 - **Ctrl+C / SIGINT**: Emergency cleanup, exit code 130
 - **Panic / crash**: Emergency cleanup before exiting
 - **Startup failure**: Immediate cleanup if ZAP container fails health checks
 
-Containers are tracked in a global registry and removed even if arete is interrupted. Use `--keep-zap` flag to keep the container running for debugging:
+Containers are tracked in a global registry and removed even if rukn is interrupted. Use `--keep-zap` flag to keep the container running for debugging:
 
 ```bash
-arete scan --target URL --engine zap --keep-zap
+rukn scan --target URL --engine zap --keep-zap
 # Container stays running after scan - useful for inspecting ZAP UI or logs
 docker ps  # See the running container
 docker logs <container_id>  # View ZAP logs
@@ -349,8 +349,8 @@ docker ps --filter ancestor=owasp/zap2docker-stable
 
 **"Port 8080 already in use"**
 ```bash
-# arete automatically selects a free port
-arete scan --target URL --engine zap --zap-port 8080
+# rukn automatically selects a free port
+rukn scan --target URL --engine zap --zap-port 8080
 # Will use an ephemeral port if 8080 is busy
 ```
 
@@ -364,10 +364,10 @@ sudo usermod -aG docker $USER
 **Scan times out before completion**
 ```bash
 # Increase timeout
-arete scan --target URL --engine zap --timeout 3600  # 1 hour
+rukn scan --target URL --engine zap --timeout 3600  # 1 hour
 
 # Or use deep profile (2 hours)
-arete scan --target URL --engine zap --profile deep
+rukn scan --target URL --engine zap --profile deep
 ```
 
 **ZAP container not cleaned up**
@@ -375,6 +375,28 @@ arete scan --target URL --engine zap --profile deep
 # Manually remove ZAP containers
 docker rm -f $(docker ps -aq --filter ancestor=zaproxy/zap-stable)
 ```
+
+## Pricing
+
+Rukn is **free and open source** for basic security scanning.
+
+**Pro features** (baseline comparison, deep scans, HTML reports) are available for teams that need them. See [LICENSING.md](LICENSING.md) for details.
+
+**Free tier includes:**
+- ✅ CLI-optimized scans (10-15 min)
+- ✅ Authenticated scanning (headers, cookies, login commands)
+- ✅ JSON and SARIF output
+- ✅ Exit-code gating for CI
+- ✅ Managed ZAP Docker lifecycle
+
+**Pro tier adds:**
+- ✅ Baseline comparison (show only NEW/FIXED issues)
+- ✅ Deep profile (60-120 min thorough scans)
+- ✅ HTML reports (beautiful, shareable docs)
+- ✅ YAML output
+- ✅ GitHub SARIF upload automation
+
+**Want Pro?** Open a GitHub issue with "Pro License Request" or see [LICENSING.md](LICENSING.md).
 
 ## Contributing
 

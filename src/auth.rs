@@ -130,7 +130,7 @@ mod tests {
     fn test_load_cookie_header_netscape() {
         // Prepare a temporary cookies file in the system temp dir
         let mut path = std::env::temp_dir();
-        path.push("arete_test_cookies.txt");
+        path.push("rukn_test_cookies.txt");
         let mut f = std::fs::File::create(&path).expect("create cookie file");
         // Netscape format lines: domain\tflag\tpath\tsecure\texpiry\tname\tvalue
         let content = "# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tFALSE\t2147483647\tSESSION\tabc123\nexample.com\tFALSE\t/\tFALSE\t2147483647\tTOKEN\txyz\n";
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn test_load_cookie_header_ignores_malformed_lines() {
         let mut path = std::env::temp_dir();
-        path.push("arete_test_cookies_malformed.txt");
+        path.push("rukn_test_cookies_malformed.txt");
         let mut f = std::fs::File::create(&path).expect("create cookie file");
         // One valid netscape line, one malformed
         let content = "# Netscape\n.example.com\tTRUE\t/\tFALSE\t2147483647\tSESSION\tabc123\nmalformed_line_without_tabs\n";
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_load_cookie_header_json_array() {
         let mut path = std::env::temp_dir();
-        path.push("arete_test_cookies_json.txt");
+        path.push("rukn_test_cookies_json.txt");
         let mut f = std::fs::File::create(&path).expect("create cookie file");
         let content = r#"[
             {"name":"SID","value":"s1"},

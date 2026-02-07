@@ -1,0 +1,92 @@
+# Rukn Security Scan - GitHub Actions Template
+# Free Tier: CI profile, JSON/SARIF output, basic exit gating
+# Pro adds: Baseline comparison, HTML reports, noise reduction
+
+name: Rukn Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly scans
+    - cron: '0 2 * * 1'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      security-events: write # For SARIF upload (free tier)
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rukn
+        run: |
+          # Download and install latest Rukn
+          curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64 -o rukn
+          chmod +x rukn
+          sudo mv rukn /usr/local/bin/
+      
+      - name: Verify installation
+        run: rukn doctor
+      
+      # Optional: Set Pro license from repository secret
+      # - name: Activate Pro license
+      #   if: ${{ secrets.ARETE_LICENSE != '' }}
+      #   run: echo "${{ secrets.ARETE_LICENSE }}" | rukn license set -
+      
+      - name: Run security scan
+        run: |
+          # Free tier: CI profile, fast scans, JSON output
+          rukn scan \
+            --target ${{ vars.APP_URL || 'https://staging.example.com' }} \
+            --profile ci \
+            --format sarif \
+            --output results.sarif \
+            --exit-on-severity high
+        
+        # Pro: Add baseline comparison to reduce noise
+        # rukn scan \
+        #   --target ${{ vars.APP_URL }} \
+        #   --profile deep \
+        #   --baseline baseline.json \
+        #   --format html \
+        #   --output report.html \
+        #   --exit-on-severity medium
+      
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif
+      
+      # Pro: Upload HTML report as artifact
+      # - name: Upload HTML report
+      #   if: always()
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: security-report
+      #     path: report.html
+      
+      # Pro: Save baseline for next run
+      # - name: Update baseline
+      #   if: github.ref == 'refs/heads/main'
+      #   run: |
+      #     rukn scan --target ${{ vars.APP_URL }} --format json --output baseline.json
+      #     git add baseline.json
+      #     git commit -m "Update security baseline [skip ci]"
+      #     git push
+
+# What Pro unlocks:
+# ✓ Baseline comparison - See only NEW vulnerabilities in PRs
+# ✓ Deep profile - Thorough scans for releases (60-120 min)
+# ✓ HTML reports - Beautiful, shareable documentation
+# ✓ YAML output - Easy integration with custom tools
+# ✓ Noise reduction - Focus on what matters
+#
+# See pricing in the README or open a GitHub issue

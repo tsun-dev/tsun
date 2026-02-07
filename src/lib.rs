@@ -1,11 +1,13 @@
-//! Arete - Security scanning tool powered by OWASP ZAP
+//! Rukn - Security scanning tool powered by OWASP ZAP
 //!
-//! This library provides the core scanning functionality for the Arete security scanner.
+//! This library provides the core scanning functionality for the Rukn security scanner.
 
 pub mod auth;
 pub mod config;
 pub mod display;
+pub mod features;
 pub mod html;
+pub mod license;
 pub mod report;
 pub mod sarif;
 pub mod scanner;

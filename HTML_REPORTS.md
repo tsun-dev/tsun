@@ -2,7 +2,7 @@
 
 ## Overview
 
-Arete now generates beautiful, interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
+Rukn now generates beautiful, interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
 
 ## Features
 
@@ -53,7 +53,7 @@ Each vulnerability includes:
 
 Generate HTML report:
 ```bash
-arete scan --target https://example.com --mock --format html --output report.html
+rukn scan --target https://example.com --mock --format html --output report.html
 ```
 
 ### Output

@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes how to create a new release of arete.
+This document describes how to create a new release of rukn.
 
 ## Prerequisites
 
@@ -71,13 +71,13 @@ git push origin v0.2.0
 
 ### 6. Verify Release
 
-1. Go to https://github.com/cWashington91/arete/releases
+1. Go to https://github.com/cWashington91/rukn/releases
 2. Verify all binaries are attached (4 `.tar.gz` files + `checksums.txt`)
 3. Test download and installation:
 
 ```bash
-curl -L https://github.com/cWashington91/arete/releases/download/v0.2.0/arete-linux-x86_64.tar.gz | tar xz
-./arete --version
+curl -L https://github.com/cWashington91/rukn/releases/download/v0.2.0/rukn-linux-x86_64.tar.gz | tar xz
+./rukn --version
 ```
 
 ### 7. Announce (Optional)
@@ -88,7 +88,7 @@ curl -L https://github.com/cWashington91/arete/releases/download/v0.2.0/arete-li
 
 ## Versioning
 
-arete follows [Semantic Versioning](https://semver.org/):
+rukn follows [Semantic Versioning](https://semver.org/):
 
 - **MAJOR** (1.0.0): Breaking API changes
 - **MINOR** (0.2.0): New features, backward compatible
@@ -118,5 +118,5 @@ Before releasing, test the install script:
 bash install.sh
 
 # Test from GitHub (after pushing)
-curl -sSL https://raw.githubusercontent.com/cWashington91/arete/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/cWashington91/rukn/main/install.sh | bash
 ```

@@ -1,22 +1,22 @@
-# arete Quick Reference
+# rukn Quick Reference
 
 ## Installation (End Users)
 
 **One-line install:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/cWashington91/arete/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/cWashington91/rukn/main/install.sh | bash
 ```
 
 **Manual download:**
 ```bash
 # Linux x86_64
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-linux-x86_64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
 
 # macOS (Intel)
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-macos-x86_64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-x86_64.tar.gz | tar xz
 
 # macOS (Apple Silicon)
-curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-macos-aarch64.tar.gz | tar xz
+curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-macos-aarch64.tar.gz | tar xz
 ```
 
 ## Common Commands
@@ -25,31 +25,31 @@ curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-ma
 
 ```bash
 # Quick test (no Docker needed)
-arete scan --target http://testphp.vulnweb.com --engine mock
+rukn scan --target http://testphp.vulnweb.com --engine mock
 
 # CI scan (15min, Docker required)
-arete scan --target https://staging.example.com --engine zap --profile ci
+rukn scan --target https://staging.example.com --engine zap --profile ci
 
 # Deep scan (2hr)
-arete scan --target https://staging.example.com --engine zap --profile deep
+rukn scan --target https://staging.example.com --engine zap --profile deep
 
 # Custom parameters
-arete scan --target URL --engine zap --timeout 1200 --max-urls 500 --attack-strength medium
+rukn scan --target URL --engine zap --timeout 1200 --max-urls 500 --attack-strength medium
 
 # With auth headers
-arete scan --target URL --engine zap --header "Authorization: Bearer TOKEN"
+rukn scan --target URL --engine zap --header "Authorization: Bearer TOKEN"
 
 # With cookies
-arete scan --target URL --engine zap --cookies cookies.txt
+rukn scan --target URL --engine zap --cookies cookies.txt
 
 # SARIF for GitHub
-arete scan --target URL --engine zap --format sarif --output report.sarif
+rukn scan --target URL --engine zap --format sarif --output report.sarif
 
 # Exit on high/critical findings
-arete scan --target URL --engine zap --exit-on-severity high
+rukn scan --target URL --engine zap --exit-on-severity high
 
 # Baseline comparison
-arete scan --target URL --engine zap --baseline baseline.json
+rukn scan --target URL --engine zap --baseline baseline.json
 ```
 
 ### Output Formats
@@ -71,12 +71,12 @@ arete scan --target URL --engine zap --baseline baseline.json
 ## GitHub Actions Example
 
 ```yaml
-- name: Download arete
-  run: curl -L https://github.com/cWashington91/arete/releases/latest/download/arete-linux-x86_64.tar.gz | tar xz
+- name: Download rukn
+  run: curl -L https://github.com/cWashington91/rukn/releases/latest/download/rukn-linux-x86_64.tar.gz | tar xz
 
 - name: Security scan
   run: |
-    ./arete scan \
+    ./rukn scan \
       --target https://staging.yourapp.com \
       --engine zap \
       --profile ci \
@@ -116,12 +116,12 @@ git tag v0.2.0 && git push origin v0.2.0
 
 **Port conflict:**
 ```bash
-arete scan --target URL --engine zap --zap-port 8081
+rukn scan --target URL --engine zap --zap-port 8081
 ```
 
 **Timeout:**
 ```bash
-arete scan --target URL --engine zap --timeout 3600  # 1 hour
+rukn scan --target URL --engine zap --timeout 3600  # 1 hour
 ```
 
 **Cleanup ZAP containers:**
@@ -131,7 +131,7 @@ docker rm -f $(docker ps -aq --filter ancestor=zaproxy/zap-stable)
 
 **Verbose logging:**
 ```bash
-arete scan --target URL --engine zap --verbose
+rukn scan --target URL --engine zap --verbose
 ```
 
 ## Architecture Overview
@@ -153,8 +153,8 @@ validation.rs    → Input validation
 
 ## Links
 
-- **Repo**: https://github.com/cWashington91/arete
-- **Releases**: https://github.com/cWashington91/arete/releases
-- **Issues**: https://github.com/cWashington91/arete/issues
+- **Repo**: https://github.com/cWashington91/rukn
+- **Releases**: https://github.com/cWashington91/rukn/releases
+- **Issues**: https://github.com/cWashington91/rukn/issues
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md)

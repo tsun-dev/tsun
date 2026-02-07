@@ -290,14 +290,19 @@ async fn run_scan(
 ) -> anyhow::Result<i32> {
     // Load license at the start
     let license = license::load_license()?;
-    
+
     // Check profile feature gating
-    if profile == "deep" && !features::is_feature_available(&license, features::Feature::DeepProfile) {
-        println!("{}", features::get_upgrade_message(features::Feature::DeepProfile));
+    if profile == "deep"
+        && !features::is_feature_available(&license, features::Feature::DeepProfile)
+    {
+        println!(
+            "{}",
+            features::get_upgrade_message(features::Feature::DeepProfile)
+        );
         Display::info("Falling back to 'ci' profile");
         // Continue with ci profile instead of failing
     }
-    
+
     // Validate inputs
     validation::validate_url(&target).map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
 
@@ -477,7 +482,10 @@ async fn run_scan(
     if let Some(baseline_file) = baseline_path {
         // Check if baseline comparison is available
         if !features::is_feature_available(&license, features::Feature::BaselineComparison) {
-            println!("{}", features::get_upgrade_message(features::Feature::BaselineComparison));
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::BaselineComparison)
+            );
             Display::warning("Baseline comparison skipped (Pro feature)");
         } else {
             match report::ScanReport::load_from_file(&baseline_file) {
@@ -498,7 +506,10 @@ async fn run_scan(
         let format_allowed = match format_lower.as_str() {
             "html" => {
                 if !features::is_feature_available(&license, features::Feature::HtmlOutput) {
-                    println!("{}", features::get_upgrade_message(features::Feature::HtmlOutput));
+                    println!(
+                        "{}",
+                        features::get_upgrade_message(features::Feature::HtmlOutput)
+                    );
                     false
                 } else {
                     true
@@ -506,7 +517,10 @@ async fn run_scan(
             }
             "yaml" | "yml" => {
                 if !features::is_feature_available(&license, features::Feature::YamlOutput) {
-                    println!("{}", features::get_upgrade_message(features::Feature::YamlOutput));
+                    println!(
+                        "{}",
+                        features::get_upgrade_message(features::Feature::YamlOutput)
+                    );
                     false
                 } else {
                     true
@@ -531,7 +545,9 @@ async fn run_scan(
     // Show license summary at end of scan
     println!("\n{}", "=".repeat(50));
     if license.effective_plan() == license::Plan::Free {
-        Display::info("Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.");
+        Display::info(
+            "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
+        );
         Display::info("Learn more: https://github.com/cWashington91/rukn#pricing");
     } else {
         println!("📊 {}", features::format_license_summary(&license));
@@ -614,10 +630,13 @@ async fn run_upload_sarif(
     // Check if SARIF upload is available
     let license = license::load_license()?;
     if !features::is_feature_available(&license, features::Feature::SarifUpload) {
-        println!("{}", features::get_upgrade_message(features::Feature::SarifUpload));
+        println!(
+            "{}",
+            features::get_upgrade_message(features::Feature::SarifUpload)
+        );
         return Err(anyhow::anyhow!("SARIF upload requires Rukn Pro"));
     }
-    
+
     // Basic validation
     if repo.is_none() {
         anyhow::bail!("--repo is required (owner/repo)");
@@ -689,7 +708,7 @@ fn setup_panic_hook() {
 
 fn run_license_set(license_input: String) -> anyhow::Result<()> {
     Display::section_header("License Management");
-    
+
     // Check if input is a file path or direct license string
     let license_str = if std::path::Path::new(&license_input).exists() {
         Display::info("Reading license from file...");
@@ -707,7 +726,7 @@ fn run_license_set(license_input: String) -> anyhow::Result<()> {
             Display::status("Plan", &lic.claims.plan.to_string());
             Display::status("Customer ID", &lic.claims.customer_id);
             Display::status("Expires", &lic.claims.expires_at);
-            
+
             // Show what's unlocked
             if lic.is_pro_or_higher() {
                 println!("\n✨ Pro features unlocked:");
@@ -727,14 +746,14 @@ fn run_license_set(license_input: String) -> anyhow::Result<()> {
 
 fn run_license_status() -> anyhow::Result<()> {
     Display::section_header("License Status");
-    
+
     let license = license::load_license()?;
-    
+
     Display::status("Plan", &license.effective_plan().to_string());
     Display::status("Customer ID", &license.claims.customer_id);
     Display::status("Issued", &license.claims.issued_at);
     Display::status("Expires", &license.claims.expires_at);
-    
+
     match license.status {
         license::LicenseStatus::Valid => {
             Display::success("License is active");
@@ -748,10 +767,12 @@ fn run_license_status() -> anyhow::Result<()> {
         }
         license::LicenseStatus::Expired => {
             Display::error("License has expired");
-            Display::info("Pro features are disabled. See: https://github.com/cWashington91/rukn#pricing");
+            Display::info(
+                "Pro features are disabled. See: https://github.com/cWashington91/rukn#pricing",
+            );
         }
     }
-    
+
     // Show available features
     println!("\n📋 Available features:");
     let all_features = vec![
@@ -767,7 +788,7 @@ fn run_license_status() -> anyhow::Result<()> {
         features::Feature::YamlOutput,
         features::Feature::SarifUpload,
     ];
-    
+
     for feature in all_features {
         let available = features::is_feature_available(&license, feature);
         let marker = if available { "✓" } else { "✗" };
@@ -778,16 +799,16 @@ fn run_license_status() -> anyhow::Result<()> {
         };
         println!("  {} {}", marker, color(feature.name()));
     }
-    
+
     Ok(())
 }
 
 async fn run_doctor() -> anyhow::Result<()> {
     Display::section_header("Rukn Doctor - System Diagnostics");
-    
+
     let mut checks_passed = 0;
     let mut checks_failed = 0;
-    
+
     // Check 1: Docker availability
     print!("Checking Docker installation... ");
     match tokio::process::Command::new("docker")
@@ -806,7 +827,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_failed += 1;
         }
     }
-    
+
     // Check 2: Docker permissions
     print!("Checking Docker permissions... ");
     match tokio::process::Command::new("docker")
@@ -824,7 +845,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_failed += 1;
         }
     }
-    
+
     // Check 3: Network connectivity
     print!("Checking network connectivity... ");
     match reqwest::Client::new()
@@ -843,11 +864,11 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_failed += 1;
         }
     }
-    
+
     // Check 4: ZAP image availability
     print!("Checking ZAP Docker image... ");
     match tokio::process::Command::new("docker")
-        .args(&["image", "inspect", "zaproxy/zap-stable"])
+        .args(["image", "inspect", "zaproxy/zap-stable"])
         .output()
         .await
     {
@@ -861,7 +882,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_passed += 1; // Not a failure, just info
         }
     }
-    
+
     // Check 5: License status
     print!("Checking license status... ");
     let license = license::load_license()?;
@@ -879,7 +900,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_passed += 1;
         }
     }
-    
+
     // Check 6: Config directory
     print!("Checking config directory... ");
     match license::get_license_path() {
@@ -892,7 +913,7 @@ async fn run_doctor() -> anyhow::Result<()> {
             checks_failed += 1;
         }
     }
-    
+
     // Summary
     println!("\n{}", "=".repeat(50));
     if checks_failed == 0 {
@@ -909,7 +930,7 @@ async fn run_doctor() -> anyhow::Result<()> {
         ));
         Display::info("Fix the issues above before running scans");
     }
-    
+
     Ok(())
 }
 

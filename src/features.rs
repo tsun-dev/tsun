@@ -7,6 +7,7 @@ use crate::license::License;
 
 /// Features available in Rukn
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Some variants reserved for future use
 pub enum Feature {
     // Always Free
     BasicScan,
@@ -17,7 +18,7 @@ pub enum Feature {
     JsonOutput,
     SarifOutput,
     BasicExitGating,
-    
+
     // Pro-only
     BaselineComparison,
     DeepProfile,
@@ -79,12 +80,8 @@ impl Feature {
             Feature::HtmlOutput => {
                 "HTML reports provide beautiful, shareable vulnerability documentation."
             }
-            Feature::YamlOutput => {
-                "YAML output enables easy integration with custom tooling."
-            }
-            Feature::SarifUpload => {
-                "SARIF upload automates GitHub Code Scanning integration."
-            }
+            Feature::YamlOutput => "YAML output enables easy integration with custom tooling.",
+            Feature::SarifUpload => "SARIF upload automates GitHub Code Scanning integration.",
             Feature::IgnoreRules => {
                 "Ignore rules reduce false positives and improve CI reliability."
             }
@@ -187,10 +184,16 @@ mod tests {
         let free_license = create_test_license(Plan::Free);
         let pro_license = create_test_license(Plan::Pro);
 
-        assert!(!is_feature_available(&free_license, Feature::BaselineComparison));
+        assert!(!is_feature_available(
+            &free_license,
+            Feature::BaselineComparison
+        ));
         assert!(!is_feature_available(&free_license, Feature::HtmlOutput));
 
-        assert!(is_feature_available(&pro_license, Feature::BaselineComparison));
+        assert!(is_feature_available(
+            &pro_license,
+            Feature::BaselineComparison
+        ));
         assert!(is_feature_available(&pro_license, Feature::HtmlOutput));
     }
 

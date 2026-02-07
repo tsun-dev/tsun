@@ -2,7 +2,7 @@
 
 ## Overview
 
-Arete includes a comprehensive mock ZAP client for testing and development without requiring a running OWASP ZAP server.
+Rukn includes a comprehensive mock ZAP client for testing and development without requiring a running OWASP ZAP server.
 
 ## Usage
 
@@ -11,19 +11,19 @@ Arete includes a comprehensive mock ZAP client for testing and development witho
 Run a mock scan using the `--mock` flag:
 
 ```bash
-arete scan --target https://example.com --mock
+rukn scan --target https://example.com --mock
 ```
 
 With verbose output:
 
 ```bash
-arete scan --target https://example.com --mock --verbose
+rukn scan --target https://example.com --mock --verbose
 ```
 
 Generate a report:
 
 ```bash
-arete scan --target https://example.com --mock --output report.json --format json
+rukn scan --target https://example.com --mock --output report.json --format json
 ```
 
 ### What's Included in Mock Scans
@@ -61,7 +61,7 @@ The mock ZAP client generates realistic vulnerabilities for testing:
 Perfect for testing the CLI and report generation:
 
 ```bash
-arete scan --target https://my-app.dev --mock --output test-report.json
+rukn scan --target https://my-app.dev --mock --output test-report.json
 ```
 
 ### Continuous Integration
@@ -71,7 +71,7 @@ Use mock mode in CI/CD pipelines:
 ```bash
 # GitHub Actions example
 - name: Run security scan (mock)
-  run: arete scan --target ${{ env.TARGET_URL }} --mock --output results.json
+  run: rukn scan --target ${{ env.TARGET_URL }} --mock --output results.json
 ```
 
 ### Integration Testing

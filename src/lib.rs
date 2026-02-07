@@ -202,8 +202,8 @@ mod tests {
         let max_cvss = report.max_cvss_score();
 
         // Verify CVSS scores are reasonable
-        assert!(avg_cvss >= 0.0 && avg_cvss <= 10.0);
-        assert!(max_cvss >= 0.0 && max_cvss <= 10.0);
+        assert!((0.0..=10.0).contains(&avg_cvss));
+        assert!((0.0..=10.0).contains(&max_cvss));
         assert!(max_cvss >= avg_cvss);
 
         println!(
@@ -265,7 +265,7 @@ mod tests {
         assert!(comparison.is_improvement);
         assert!(comparison.total_delta < 0);
         assert_eq!(comparison.new_vulnerabilities.len(), 0);
-        assert!(comparison.fixed_vulnerabilities.len() > 0);
+        assert!(!comparison.fixed_vulnerabilities.is_empty());
 
         println!(
             "Comparison: {} fixed, {} new",
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_report_load_from_json() {
-        let config = ScanConfig::default();
+        let _config = ScanConfig::default();
         let report = crate::report::ScanReport {
             target: "https://example.com".to_string(),
             timestamp: chrono::Local::now().to_rfc3339(),

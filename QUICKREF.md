@@ -4,7 +4,7 @@
 
 **One-line install:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/cWashington91/tsun/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/tsun-dev/tsun/main/install.sh | bash
 ```
 
 **Manual download:**

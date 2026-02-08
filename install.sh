@@ -1,6 +1,6 @@
 #!/bin/bash
 # tsun installer script
-# Usage: curl -sSL https://raw.githubusercontent.com/cWashington91/tsun/main/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/tsun-dev/tsun/main/install.sh | bash
 
 set -e
 
@@ -33,7 +33,7 @@ echo "Detected platform: $PLATFORM"
 echo "Installing tsun..."
 
 # Download and extract
-DOWNLOAD_URL="https://github.com/cWashington91/tsun/releases/latest/download/tsun-${PLATFORM}.tar.gz"
+DOWNLOAD_URL="https://github.com/tsun-dev/tsun/releases/latest/download/tsun-${PLATFORM}.tar.gz"
 
 echo "Downloading from: $DOWNLOAD_URL"
 curl -sSL "$DOWNLOAD_URL" | tar xz
@@ -72,4 +72,4 @@ echo ""
 echo "Get started:"
 echo "  tsun scan --target http://testphp.vulnweb.com --engine mock"
 echo ""
-echo "Docs: https://github.com/cWashington91/tsun"
+echo "Docs: https://github.com/tsun-dev/tsun"

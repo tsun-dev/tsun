@@ -89,5 +89,5 @@ tsun-security-scan:
 # ✓ Noise reduction - Ignore known false positives
 # ✓ CI reliability - Focus on actionable findings
 #
-# See pricing: https://github.com/tsun-dev/tsun#pricing
+# See pricing: https://use-tsun.dev/#pricing
 # Questions? Open a GitHub issue

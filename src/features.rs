@@ -106,7 +106,7 @@ pub fn get_upgrade_message(feature: Feature) -> String {
     }
 
     format!(
-        "\n⚠️  {} is part of Tsun Pro\n\n{}\n\nGet Pro: https://github.com/cWashington91/tsun#pricing\nOr run: tsun license set <your_license>\n",
+        "\n⚠️  {} is part of Tsun Pro\n\n{}\n\nGet Pro: https://use-tsun.dev/#pricing\nOr run: tsun license set <your_license>\n",
         feature.name(),
         feature.value_message()
     )

@@ -665,7 +665,7 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
         Display::info(
             "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
         );
-        Display::info("Learn more: https://github.com/tsun-dev/tsun#pricing");
+        Display::info("Learn more: https://use-tsun.dev/#pricing");
     } else {
         println!("📊 {}", features::format_license_summary(opts.license));
     }
@@ -876,9 +876,7 @@ fn run_license_status() -> anyhow::Result<()> {
         }
         license::LicenseStatus::Expired => {
             Display::error("License has expired");
-            Display::info(
-                "Pro features are disabled. See: https://github.com/tsun-dev/tsun#pricing",
-            );
+            Display::info("Pro features are disabled. See: https://use-tsun.dev/#pricing");
         }
     }
 

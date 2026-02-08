@@ -24,18 +24,23 @@ Download pre-built binaries from:
 
 **[https://github.com/tsun-dev/tsun/releases](https://github.com/tsun-dev/tsun/releases)**
 
+If installation fails, verify your platform matches the asset name or download directly from the Releases page.
+
 ```bash
 # Linux x86_64
-curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
-sudo mv tsun /usr/local/bin/
+curl -fL https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+sudo install -m 0755 tsun /usr/local/bin/tsun
 
 # macOS (Intel)
-curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
-sudo mv tsun /usr/local/bin/
+curl -fL https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
+sudo install -m 0755 tsun /usr/local/bin/tsun
 
 # macOS (Apple Silicon)
-curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
-sudo mv tsun /usr/local/bin/
+curl -fL https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
+sudo install -m 0755 tsun /usr/local/bin/tsun
+
+# Verify installation
+tsun --version
 ```
 
 ---

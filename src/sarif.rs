@@ -156,7 +156,7 @@ pub fn generate_sarif_report(report: &ScanReport) -> String {
                 driver: Driver {
                     name: "tsun".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    information_uri: Some("https://github.com/christavo/tsun".to_string()),
+                    information_uri: Some("https://github.com/tsun-dev/tsun".to_string()),
                     semantic_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 },
             },

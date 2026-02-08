@@ -4,7 +4,9 @@ use std::path::PathBuf;
 mod auth;
 mod config;
 mod display;
+mod features;
 mod html;
+mod license;
 mod report;
 mod sarif;
 mod scanner;
@@ -19,7 +21,7 @@ use display::Display;
 use scanner::Scanner;
 
 #[derive(Parser)]
-#[command(name = "arete")]
+#[command(name = "tsun")]
 #[command(about = "Security scanning tool powered by OWASP ZAP", long_about = None)]
 #[command(version)]
 struct Cli {
@@ -114,7 +116,7 @@ enum Commands {
     /// Generate a configuration template
     Init {
         /// Configuration file name
-        #[arg(short, long, default_value = "arete.yaml")]
+        #[arg(short, long, default_value = "tsun.yaml")]
         config: String,
     },
     /// Check ZAP server connectivity
@@ -145,6 +147,24 @@ enum Commands {
         #[arg(long)]
         token: Option<String>,
     },
+    /// Manage Tsun Pro license
+    License {
+        #[command(subcommand)]
+        action: LicenseAction,
+    },
+    /// Run diagnostics to check Tsun setup
+    Doctor,
+}
+
+#[derive(Subcommand)]
+enum LicenseAction {
+    /// Set a license key
+    Set {
+        /// License key or path to license file
+        license: String,
+    },
+    /// Show current license status
+    Status,
 }
 
 #[tokio::main]
@@ -152,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env().add_directive("arete=info".parse()?),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("tsun=info".parse()?),
         )
         .init();
 
@@ -229,6 +249,17 @@ async fn main() -> anyhow::Result<()> {
         } => {
             run_upload_sarif(file, repo, commit, git_ref, token).await?;
         }
+        Commands::License { action } => match action {
+            LicenseAction::Set { license } => {
+                run_license_set(license)?;
+            }
+            LicenseAction::Status => {
+                run_license_status()?;
+            }
+        },
+        Commands::Doctor => {
+            run_doctor().await?;
+        }
     }
 
     Ok(())
@@ -257,6 +288,21 @@ async fn run_scan(
     attack_strength: Option<String>,
     alert_threshold: Option<String>,
 ) -> anyhow::Result<i32> {
+    // Load license at the start
+    let license = license::load_license()?;
+
+    // Check profile feature gating
+    if profile == "deep"
+        && !features::is_feature_available(&license, features::Feature::DeepProfile)
+    {
+        println!(
+            "{}",
+            features::get_upgrade_message(features::Feature::DeepProfile)
+        );
+        Display::info("Falling back to 'ci' profile");
+        // Continue with ci profile instead of failing
+    }
+
     // Validate inputs
     validation::validate_url(&target).map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
 
@@ -434,22 +480,77 @@ async fn run_scan(
 
     // Perform comparison if baseline is provided
     if let Some(baseline_file) = baseline_path {
-        match report::ScanReport::load_from_file(&baseline_file) {
-            Ok(baseline_report) => {
-                let comparison = report::ReportComparison::new(&baseline_report, &report);
-                Display::comparison_report(&comparison);
-            }
-            Err(e) => {
-                Display::warning(&format!("Failed to load baseline report: {}", e));
+        // Check if baseline comparison is available
+        if !features::is_feature_available(&license, features::Feature::BaselineComparison) {
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::BaselineComparison)
+            );
+            Display::warning("Baseline comparison skipped (Pro feature)");
+        } else {
+            match report::ScanReport::load_from_file(&baseline_file) {
+                Ok(baseline_report) => {
+                    let comparison = report::ReportComparison::new(&baseline_report, &report);
+                    Display::comparison_report(&comparison);
+                }
+                Err(e) => {
+                    Display::warning(&format!("Failed to load baseline report: {}", e));
+                }
             }
         }
     }
 
     if let Some(output_path) = output {
-        report.save(&output_path, &format)?;
-        Display::success(&format!("Report saved to: {}", output_path.display()));
+        // Check format feature gating
+        let format_lower = format.to_lowercase();
+        let format_allowed = match format_lower.as_str() {
+            "html" => {
+                if !features::is_feature_available(&license, features::Feature::HtmlOutput) {
+                    println!(
+                        "{}",
+                        features::get_upgrade_message(features::Feature::HtmlOutput)
+                    );
+                    false
+                } else {
+                    true
+                }
+            }
+            "yaml" | "yml" => {
+                if !features::is_feature_available(&license, features::Feature::YamlOutput) {
+                    println!(
+                        "{}",
+                        features::get_upgrade_message(features::Feature::YamlOutput)
+                    );
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => true, // JSON, SARIF are free
+        };
+
+        if format_allowed {
+            report.save(&output_path, &format)?;
+            Display::success(&format!("Report saved to: {}", output_path.display()));
+        } else {
+            Display::warning("Saving report as JSON (Pro required for HTML/YAML)");
+            let json_path = output_path.with_extension("json");
+            report.save(&json_path, "json")?;
+            Display::success(&format!("Report saved to: {}", json_path.display()));
+        }
     } else {
         println!("\n{}", report.summary());
+    }
+
+    // Show license summary at end of scan
+    println!("\n{}", "=".repeat(50));
+    if license.effective_plan() == license::Plan::Free {
+        Display::info(
+            "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
+        );
+        Display::info("Learn more: https://github.com/cWashington91/tsun#pricing");
+    } else {
+        println!("📊 {}", features::format_license_summary(&license));
     }
 
     // Determine exit code based on exit_on_severity threshold
@@ -526,6 +627,16 @@ async fn run_upload_sarif(
     git_ref: Option<String>,
     token: Option<String>,
 ) -> anyhow::Result<()> {
+    // Check if SARIF upload is available
+    let license = license::load_license()?;
+    if !features::is_feature_available(&license, features::Feature::SarifUpload) {
+        println!(
+            "{}",
+            features::get_upgrade_message(features::Feature::SarifUpload)
+        );
+        return Err(anyhow::anyhow!("SARIF upload requires Tsun Pro"));
+    }
+
     // Basic validation
     if repo.is_none() {
         anyhow::bail!("--repo is required (owner/repo)");
@@ -553,13 +664,13 @@ async fn run_upload_sarif(
         "commit_sha": commit_sha,
         "ref": ref_field,
         "sarif": content,
-        "tool_name": "arete",
+        "tool_name": "tsun",
     });
 
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", gh_token))
-        .header("User-Agent", "arete")
+        .header("User-Agent", "tsun")
         .header("Accept", "application/vnd.github+json")
         .json(&body)
         .send()
@@ -593,6 +704,234 @@ fn setup_panic_hook() {
         zap_managed::cleanup_all_containers();
         original_hook(panic_info);
     }));
+}
+
+fn run_license_set(license_input: String) -> anyhow::Result<()> {
+    Display::section_header("License Management");
+
+    // Check if input is a file path or direct license string
+    let license_str = if std::path::Path::new(&license_input).exists() {
+        Display::info("Reading license from file...");
+        std::fs::read_to_string(&license_input)?
+    } else {
+        license_input
+    };
+
+    // Validate and save
+    match license::save_license(&license_str) {
+        Ok(()) => {
+            // Load to show details
+            let lic = license::load_license()?;
+            Display::success("License activated successfully!");
+            Display::status("Plan", &lic.claims.plan.to_string());
+            Display::status("Customer ID", &lic.claims.customer_id);
+            Display::status("Expires", &lic.claims.expires_at);
+
+            // Show what's unlocked
+            if lic.is_pro_or_higher() {
+                println!("\n✨ Pro features unlocked:");
+                for feature in features::get_pro_features() {
+                    println!("  • {}", feature.name());
+                }
+            }
+        }
+        Err(e) => {
+            Display::error(&format!("Failed to activate license: {}", e));
+            return Err(e);
+        }
+    }
+
+    Ok(())
+}
+
+fn run_license_status() -> anyhow::Result<()> {
+    Display::section_header("License Status");
+
+    let license = license::load_license()?;
+
+    Display::status("Plan", &license.effective_plan().to_string());
+    Display::status("Customer ID", &license.claims.customer_id);
+    Display::status("Issued", &license.claims.issued_at);
+    Display::status("Expires", &license.claims.expires_at);
+
+    match license.status {
+        license::LicenseStatus::Valid => {
+            Display::success("License is active");
+        }
+        license::LicenseStatus::GracePeriod { days_remaining } => {
+            Display::warning(&format!(
+                "License expired - grace period active ({} days remaining)",
+                days_remaining
+            ));
+            Display::info("Pro features will be disabled after grace period ends");
+        }
+        license::LicenseStatus::Expired => {
+            Display::error("License has expired");
+            Display::info(
+                "Pro features are disabled. See: https://github.com/cWashington91/tsun#pricing",
+            );
+        }
+    }
+
+    // Show available features
+    println!("\n📋 Available features:");
+    let all_features = vec![
+        features::Feature::BasicScan,
+        features::Feature::CiProfile,
+        features::Feature::AuthHeaders,
+        features::Feature::AuthCookies,
+        features::Feature::JsonOutput,
+        features::Feature::SarifOutput,
+        features::Feature::BaselineComparison,
+        features::Feature::DeepProfile,
+        features::Feature::HtmlOutput,
+        features::Feature::YamlOutput,
+        features::Feature::SarifUpload,
+    ];
+
+    for feature in all_features {
+        let available = features::is_feature_available(&license, feature);
+        let marker = if available { "✓" } else { "✗" };
+        let color = if available {
+            colored::Colorize::green
+        } else {
+            colored::Colorize::dimmed
+        };
+        println!("  {} {}", marker, color(feature.name()));
+    }
+
+    Ok(())
+}
+
+async fn run_doctor() -> anyhow::Result<()> {
+    Display::section_header("Tsun Doctor - System Diagnostics");
+
+    let mut checks_passed = 0;
+    let mut checks_failed = 0;
+
+    // Check 1: Docker availability
+    print!("Checking Docker installation... ");
+    match tokio::process::Command::new("docker")
+        .arg("--version")
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            let version = String::from_utf8_lossy(&output.stdout);
+            println!("✓ {}", version.trim());
+            checks_passed += 1;
+        }
+        _ => {
+            println!("✗ Docker not found");
+            Display::warning("Install Docker: https://docs.docker.com/get-docker/");
+            checks_failed += 1;
+        }
+    }
+
+    // Check 2: Docker permissions
+    print!("Checking Docker permissions... ");
+    match tokio::process::Command::new("docker")
+        .arg("ps")
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            println!("✓ Docker accessible");
+            checks_passed += 1;
+        }
+        _ => {
+            println!("✗ Cannot access Docker");
+            Display::warning("Try: sudo usermod -aG docker $USER && newgrp docker");
+            checks_failed += 1;
+        }
+    }
+
+    // Check 3: Network connectivity
+    print!("Checking network connectivity... ");
+    match reqwest::Client::new()
+        .get("https://api.github.com/zen")
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        Ok(_) => {
+            println!("✓ Internet accessible");
+            checks_passed += 1;
+        }
+        Err(_) => {
+            println!("✗ Network issues detected");
+            Display::warning("Check your internet connection");
+            checks_failed += 1;
+        }
+    }
+
+    // Check 4: ZAP image availability
+    print!("Checking ZAP Docker image... ");
+    match tokio::process::Command::new("docker")
+        .args(["image", "inspect", "zaproxy/zap-stable"])
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            println!("✓ ZAP image available");
+            checks_passed += 1;
+        }
+        _ => {
+            println!("⚠ ZAP image not cached (will download on first scan)");
+            Display::info("First scan will pull the image (~500MB)");
+            checks_passed += 1; // Not a failure, just info
+        }
+    }
+
+    // Check 5: License status
+    print!("Checking license status... ");
+    let license = license::load_license()?;
+    match license.status {
+        license::LicenseStatus::Valid => {
+            println!("✓ {} license active", license.effective_plan());
+            checks_passed += 1;
+        }
+        license::LicenseStatus::GracePeriod { days_remaining } => {
+            println!("⚠ Grace period ({} days)", days_remaining);
+            checks_passed += 1;
+        }
+        license::LicenseStatus::Expired => {
+            println!("⚠ Free tier (license expired)");
+            checks_passed += 1;
+        }
+    }
+
+    // Check 6: Config directory
+    print!("Checking config directory... ");
+    match license::get_license_path() {
+        Ok(path) => {
+            println!("✓ {}", path.parent().unwrap().display());
+            checks_passed += 1;
+        }
+        Err(_) => {
+            println!("✗ Cannot determine config path");
+            checks_failed += 1;
+        }
+    }
+
+    // Summary
+    println!("\n{}", "=".repeat(50));
+    if checks_failed == 0 {
+        Display::success(&format!(
+            "All checks passed ({}/{})",
+            checks_passed,
+            checks_passed + checks_failed
+        ));
+        Display::info("You're ready to run: tsun scan --target <url>");
+    } else {
+        Display::warning(&format!(
+            "Some checks failed ({} passed, {} failed)",
+            checks_passed, checks_failed
+        ));
+        Display::info("Fix the issues above before running scans");
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

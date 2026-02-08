@@ -1,0 +1,93 @@
+# Tsun Security Scan - GitLab CI Template
+# Free Tier: CI profile, JSON/SARIF output, basic exit gating
+# Pro adds: Baseline comparison, HTML reports, noise reduction
+
+stages:
+  - security
+
+tsun-security-scan:
+  stage: security
+  image: docker:24-dind
+  
+  services:
+    - docker:24-dind
+  
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+    # Set your target URL
+    APP_URL: "https://staging.example.com"
+  
+  before_script:
+    # Install Tsun
+    - apk add --no-cache curl bash
+    - curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64 -o /usr/local/bin/tsun
+    - chmod +x /usr/local/bin/tsun
+    - tsun doctor
+    
+    # Optional: Activate Pro license
+    # - if [ -n "$TSUN_LICENSE" ]; then echo "$TSUN_LICENSE" | tsun license set -; fi
+  
+  script:
+    # Free tier: CI profile, fast scans (10-15 min)
+    - |
+      tsun scan \
+        --target $APP_URL \
+        --profile ci \
+        --engine zap \
+        --format sarif \
+        --output gl-sast-report.json \
+        --exit-on-severity high
+    
+    # Pro tier: Deep profile with baseline comparison
+    # - |
+    #   tsun scan \
+    #     --target $APP_URL \
+    #     --profile deep \
+    #     --baseline baseline.json \
+    #     --format html \
+    #     --output security-report.html \
+    #     --exit-on-severity medium
+  
+  artifacts:
+    reports:
+      # GitLab SAST format (free tier)
+      sast: gl-sast-report.json
+    paths:
+      - gl-sast-report.json
+      # Pro: Include HTML report
+      # - security-report.html
+    expire_in: 30 days
+    when: always
+  
+  # Run on merge requests and main branch
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule" # Weekly scans
+
+# Pro-only: Baseline update job
+# tsun-baseline-update:
+#   stage: security
+#   image: docker:24-dind
+#   services:
+#     - docker:24-dind
+#   script:
+#     - tsun scan --target $APP_URL --format json --output baseline.json
+#   artifacts:
+#     paths:
+#       - baseline.json
+#   only:
+#     - main
+#   when: manual
+
+# What Tsun Pro unlocks:
+# ✓ Baseline comparison - Show only NEW vulnerabilities in MRs
+# ✓ Deep profile - Thorough scans (60-120 min) for releases
+# ✓ HTML reports - Beautiful vulnerability documentation
+# ✓ YAML output - Easy integration with custom tooling
+# ✓ Noise reduction - Ignore known false positives
+# ✓ CI reliability - Focus on actionable findings
+#
+# See pricing: https://github.com/cWashington91/tsun#pricing
+# Questions? Open a GitHub issue

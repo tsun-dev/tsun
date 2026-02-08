@@ -1,21 +1,21 @@
 [package]
-name = "arete"
+name = "tsun"
 version = "0.2.0"
 edition = "2021"
 description = "Security scanning tool powered by OWASP ZAP with Docker-managed scans, scan profiles, and CI integration"
 authors = ["cWashington91"]
 license = "MIT"
-repository = "https://github.com/cWashington91/arete"
+repository = "https://github.com/cWashington91/tsun"
 readme = "README.md"
 keywords = ["security", "zap", "owasp", "scanner", "ci"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
-name = "arete"
+name = "tsun"
 path = "src/lib.rs"
 
 [[bin]]
-name = "arete"
+name = "tsun"
 path = "src/main.rs"
 
 [dependencies]
@@ -37,5 +37,7 @@ ctrlc = "3.4"
 maud = "0.26"
 url = "2.5"
 indicatif = "0.18.3"
+base64 = "0.21"
+md5 = "0.7"
 
 [dev-dependencies]

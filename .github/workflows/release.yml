@@ -17,20 +17,20 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: arete
-            asset_name: arete-linux-x86_64
+            artifact_name: tsun
+            asset_name: tsun-linux-x86_64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact_name: arete
-            asset_name: arete-linux-aarch64
+            artifact_name: tsun
+            asset_name: tsun-linux-aarch64
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: arete
-            asset_name: arete-macos-x86_64
+            artifact_name: tsun
+            asset_name: tsun-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: arete
-            asset_name: arete-macos-aarch64
+            artifact_name: tsun
+            asset_name: tsun-macos-aarch64
 
     steps:
       - name: Checkout code

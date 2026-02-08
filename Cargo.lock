@@ -77,30 +77,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
-name = "arete"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "colored",
- "ctrlc",
- "dotenv",
- "indicatif",
- "maud",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -779,6 +755,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
@@ -1529,6 +1511,32 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "tsun"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "chrono",
+ "clap",
+ "colored",
+ "ctrlc",
+ "dotenv",
+ "indicatif",
+ "maud",
+ "md5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+]
 
 [[package]]
 name = "unicode-ident"

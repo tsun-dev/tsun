@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tsun now generates beautiful, interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
+Tsun generates interactive HTML security scan reports with professional styling and comprehensive vulnerability details.
 
 ## Features
 
@@ -135,11 +135,3 @@ For a typical scan with 6 vulnerabilities:
 - **HTML**: ~12 KB (includes all CSS)
 - **JSON**: ~3.6 KB (structured data)
 - **YAML**: ~2.6 KB (human-readable)
-
-## Next Steps
-
-- [ ] Export individual vulnerability remediation guidance
-- [ ] Add trend charts (scans over time)
-- [ ] Implement Dark mode toggle
-- [ ] Add report filtering/searching in HTML
-- [ ] Generate PDF from HTML reports

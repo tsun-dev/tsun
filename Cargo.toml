@@ -1,11 +1,11 @@
 [package]
 name = "tsun"
 version = "0.2.0"
-edition = "2021"
+edition = "2026"
 description = "Security scanning tool powered by OWASP ZAP with Docker-managed scans, scan profiles, and CI integration"
 authors = ["cWashington91"]
 license = "MIT"
-repository = "https://github.com/cWashington91/tsun"
+repository = "https://github.com/tsun-dev/tsun"
 readme = "README.md"
 keywords = ["security", "zap", "owasp", "scanner", "ci"]
 categories = ["command-line-utilities", "development-tools"]

@@ -71,12 +71,12 @@ git push origin v0.2.0
 
 ### 6. Verify Release
 
-1. Go to https://github.com/cWashington91/tsun/releases
+1. Go to https://github.com/tsun-dev/tsun/releases
 2. Verify all binaries are attached (4 `.tar.gz` files + `checksums.txt`)
 3. Test download and installation:
 
 ```bash
-curl -L https://github.com/cWashington91/tsun/releases/download/v0.2.0/tsun-linux-x86_64.tar.gz | tar xz
+curl -L https://github.com/tsun-dev/tsun/releases/download/v0.2.0/tsun-linux-x86_64.tar.gz | tar xz
 ./tsun --version
 ```
 
@@ -118,5 +118,5 @@ Before releasing, test the install script:
 bash install.sh
 
 # Test from GitHub (after pushing)
-curl -sSL https://raw.githubusercontent.com/cWashington91/tsun/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/tsun-dev/tsun/main/install.sh | bash
 ```

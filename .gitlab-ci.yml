@@ -21,7 +21,7 @@ tsun-security-scan:
   before_script:
     # Install Tsun
     - apk add --no-cache curl bash
-    - curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64 -o /usr/local/bin/tsun
+    - curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64 -o /usr/local/bin/tsun
     - chmod +x /usr/local/bin/tsun
     - tsun doctor
     
@@ -89,5 +89,5 @@ tsun-security-scan:
 # ✓ Noise reduction - Ignore known false positives
 # ✓ CI reliability - Focus on actionable findings
 #
-# See pricing: https://github.com/cWashington91/tsun#pricing
+# See pricing: https://github.com/tsun-dev/tsun#pricing
 # Questions? Open a GitHub issue

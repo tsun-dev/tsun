@@ -32,8 +32,8 @@ jobs:
       - name: Install Tsun
         run: |
           # Download and install latest Tsun release
-          # Visit https://github.com/cWashington91/tsun/releases for available versions
-          curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+          # Visit https://github.com/tsun-dev/tsun/releases for available versions
+          curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
           chmod +x tsun
           sudo mv tsun /usr/local/bin/
       
@@ -42,8 +42,8 @@ jobs:
       
       # Optional: Set Pro license from repository secret
       # - name: Activate Pro license
-      #   if: ${{ secrets.RUKN_LICENSE != '' }}
-      #   run: echo "${{ secrets.RUKN_LICENSE }}" | tsun license set -
+      #   if: ${{ secrets.TSUN_LICENSE != '' }}
+      #   run: echo "${{ secrets.TSUN_LICENSE }}" | tsun license set -
       
       - name: Run security scan
         run: |

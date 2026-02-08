@@ -167,6 +167,45 @@ enum LicenseAction {
     Status,
 }
 
+/// Options for executing a scan and reporting results
+struct ExecutionOptions<'a> {
+    engine: &'a str,
+    target: &'a str,
+    profile: &'a str,
+    format: &'a str,
+    config_path: &'a Option<PathBuf>,
+    output: Option<PathBuf>,
+    min_severity: &'a str,
+    baseline_path: Option<PathBuf>,
+    exit_on_severity: &'a str,
+    license: &'a license::License,
+    scanner: Scanner,
+}
+
+/// All options for a single scan invocation, gathered from CLI args.
+struct ScanOptions {
+    target: String,
+    config_path: Option<PathBuf>,
+    format: String,
+    output: Option<PathBuf>,
+    verbose: bool,
+    min_severity: String,
+    engine: String,
+    zap_image: String,
+    zap_port: u16,
+    keep_zap: bool,
+    baseline_path: Option<PathBuf>,
+    exit_on_severity: String,
+    headers: Vec<String>,
+    cookies: Option<PathBuf>,
+    login_command: Option<String>,
+    timeout: Option<u64>,
+    profile: String,
+    max_urls: Option<u32>,
+    attack_strength: Option<String>,
+    alert_threshold: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
@@ -207,9 +246,9 @@ async fn main() -> anyhow::Result<()> {
             attack_strength,
             alert_threshold,
         } => {
-            let exit_code = run_scan(
+            let opts = ScanOptions {
                 target,
-                config,
+                config_path: config,
                 format,
                 output,
                 verbose,
@@ -218,9 +257,9 @@ async fn main() -> anyhow::Result<()> {
                 zap_image,
                 zap_port,
                 keep_zap,
-                baseline,
+                baseline_path: baseline,
                 exit_on_severity,
-                header,
+                headers: header,
                 cookies,
                 login_command,
                 timeout,
@@ -228,8 +267,8 @@ async fn main() -> anyhow::Result<()> {
                 max_urls,
                 attack_strength,
                 alert_threshold,
-            )
-            .await?;
+            };
+            let exit_code = run_scan(opts).await?;
             if exit_code != 0 {
                 std::process::exit(exit_code);
             }
@@ -265,48 +304,131 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn run_scan(
-    target: String,
-    config_path: Option<PathBuf>,
-    format: String,
-    output: Option<PathBuf>,
-    verbose: bool,
-    min_severity: String,
-    engine: String,
-    zap_image: String,
-    zap_port: u16,
-    keep_zap: bool,
-    baseline_path: Option<PathBuf>,
-    exit_on_severity: String,
-    headers: Vec<String>,
-    cookies: Option<PathBuf>,
-    login_command: Option<String>,
-    timeout: Option<u64>,
-    profile: String,
-    max_urls: Option<u32>,
-    attack_strength: Option<String>,
-    alert_threshold: Option<String>,
-) -> anyhow::Result<i32> {
-    // Load license at the start
+async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
+    let ScanOptions {
+        target,
+        config_path,
+        format,
+        output,
+        verbose,
+        min_severity,
+        engine,
+        zap_image,
+        zap_port,
+        keep_zap,
+        baseline_path,
+        exit_on_severity,
+        headers,
+        cookies,
+        login_command,
+        timeout,
+        profile,
+        max_urls,
+        attack_strength,
+        alert_threshold,
+    } = opts;
+
+    // ── Phase 1: License & validation ───────────────────────────────────
     let license = license::load_license()?;
 
-    // Check profile feature gating
-    if profile == "deep"
-        && !features::is_feature_available(&license, features::Feature::DeepProfile)
+    let effective_profile = check_profile_access(&license, &profile);
+
+    validate_scan_inputs(&target, &format, &config_path, &output)?;
+
+    // ── Phase 2: Config & profile resolution ────────────────────────────
+    let mut config = if let Some(ref path) = config_path {
+        ScanConfig::from_file(path)?
+    } else {
+        ScanConfig::default()
+    };
+
+    let resolved = config::resolve_profile(
+        &effective_profile,
+        &mut config,
+        timeout,
+        max_urls,
+        attack_strength,
+        alert_threshold,
+    );
+
+    // ── Phase 3: Auth preparation ───────────────────────────────────────
+    let effective_headers = prepare_auth(login_command, &headers, cookies, verbose);
+
+    // ── Phase 4: Engine creation ────────────────────────────────────────
+    let (mut scanner, _managed_zap) = create_scanner(
+        &engine,
+        &target,
+        config,
+        effective_headers,
+        zap_image,
+        zap_port,
+        keep_zap,
+    )
+    .await?;
+
+    if verbose {
+        Display::info("Verbose logging enabled");
+        scanner.set_verbose(true);
+    }
+
+    scanner.set_scan_params(
+        resolved.max_urls,
+        Some(resolved.attack_strength.to_string()),
+        Some(resolved.alert_threshold.to_string()),
+    );
+
+    // ── Phase 5: Execute scan, report, and determine exit code ──────────
+    let exit_code = execute_and_report(ExecutionOptions {
+        engine: &engine,
+        target: &target,
+        profile: &effective_profile,
+        format: &format,
+        config_path: &config_path,
+        output,
+        min_severity: &min_severity,
+        baseline_path,
+        exit_on_severity: &exit_on_severity,
+        license: &license,
+        scanner,
+    })
+    .await?;
+
+    // ── Phase 6: Cleanup ────────────────────────────────────────────────
+    if engine != "mock" {
+        if let Some(managed) = _managed_zap {
+            Display::info("Cleaning up ZAP container...");
+            managed.stop().await?;
+        }
+    }
+
+    Ok(exit_code)
+}
+
+/// Check if the requested profile is licensed; return the effective profile name.
+fn check_profile_access(license: &license::License, profile: &str) -> String {
+    if profile == "deep" && !features::is_feature_available(license, features::Feature::DeepProfile)
     {
         println!(
             "{}",
             features::get_upgrade_message(features::Feature::DeepProfile)
         );
         Display::info("Falling back to 'ci' profile");
-        // Continue with ci profile instead of failing
+        "ci".to_string()
+    } else {
+        profile.to_string()
     }
+}
 
-    // Validate inputs
-    validation::validate_url(&target).map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
+/// Validate all scan inputs before proceeding.
+fn validate_scan_inputs(
+    target: &str,
+    format: &str,
+    config_path: &Option<PathBuf>,
+    output: &Option<PathBuf>,
+) -> anyhow::Result<()> {
+    validation::validate_url(target).map_err(|e| anyhow::anyhow!("Invalid target URL: {}", e))?;
 
-    validation::validate_format(&format).map_err(|e| anyhow::anyhow!("Invalid format: {}", e))?;
+    validation::validate_format(format).map_err(|e| anyhow::anyhow!("Invalid format: {}", e))?;
 
     if let Some(ref config_file) = config_path {
         validation::validate_config_file(config_file)
@@ -318,49 +440,44 @@ async fn run_scan(
             .map_err(|e| anyhow::anyhow!("Invalid output path: {}", e))?;
     }
 
-    let mut config = if let Some(ref path) = config_path {
-        ScanConfig::from_file(path)?
-    } else {
-        ScanConfig::default()
-    };
+    Ok(())
+}
 
-    // Apply scan profile defaults
-    let (profile_timeout, profile_max_urls, profile_attack, profile_threshold) =
-        match profile.as_str() {
-            "ci" => (
-                Some(900), // 15 minutes
-                Some(200), // Limit crawling
-                "low".to_string(),
-                "medium".to_string(),
-            ),
-            "deep" => (
-                Some(7200), // 2 hours
-                None,       // No URL limit
-                "medium".to_string(),
-                "low".to_string(),
-            ),
-            _ => (None, None, "low".to_string(), "medium".to_string()),
-        };
-
-    // CLI timeout overrides profile and config file
-    if let Some(t) = timeout {
-        config.timeout = Some(t);
-    } else if let Some(t) = profile_timeout {
-        config.timeout = Some(t);
+/// Run a shell command in a platform-appropriate way.
+///
+/// Uses `sh -c` on Unix and `cmd /C` on Windows.
+fn run_shell_command(cmd: &str) -> std::io::Result<std::process::ExitStatus> {
+    #[cfg(unix)]
+    {
+        std::process::Command::new("sh").arg("-c").arg(cmd).status()
     }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .arg("/C")
+            .arg(cmd)
+            .status()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        // Fallback for other platforms — try sh first
+        std::process::Command::new("sh").arg("-c").arg(cmd).status()
+    }
+}
 
-    // Store scan tuning parameters for ZAP
-    let scan_max_urls = max_urls.or(profile_max_urls);
-    let scan_attack_strength = attack_strength.unwrap_or(profile_attack);
-    let scan_alert_threshold = alert_threshold.unwrap_or(profile_threshold);
-
+/// Run login command (if any), parse headers and cookies into effective header list.
+fn prepare_auth(
+    login_command: Option<String>,
+    headers: &[String],
+    cookies: Option<PathBuf>,
+    verbose: bool,
+) -> Vec<(String, String)> {
     // If a login command is provided, run it before scanning (user handles cookie persistence)
     if let Some(cmd) = login_command {
         if verbose {
             Display::info(&format!("Running login command: {}", cmd));
         }
-        // Run the command via shell
-        let status = std::process::Command::new("sh").arg("-c").arg(cmd).status();
+        let status = run_shell_command(&cmd);
         match status {
             Ok(s) if s.success() => {
                 if verbose {
@@ -376,8 +493,7 @@ async fn run_scan(
         }
     }
 
-    // Parse headers and cookies
-    let parsed_headers = parse_headers(&headers);
+    let parsed_headers = parse_headers(headers);
     let cookie_header = if let Some(cookie_path) = cookies {
         match load_cookie_header(&cookie_path) {
             Ok(h) => Some(h),
@@ -390,56 +506,60 @@ async fn run_scan(
         None
     };
 
-    // Inject cookie header if present
     let mut effective_headers = parsed_headers;
     if let Some(ch) = cookie_header {
         effective_headers.push(("Cookie".to_string(), ch));
     }
+    effective_headers
+}
 
-    // Determine which scan engine to use
-    let use_mock = engine == "mock";
-    let mut _managed_zap: Option<zap_managed::ZapManaged> = None; // Keep alive for duration of scan
+/// Create the scanner and (optionally) a managed ZAP container.
+///
+/// The returned `Option<ZapManaged>` must be kept alive for the scan duration.
+async fn create_scanner(
+    engine: &str,
+    target: &str,
+    config: ScanConfig,
+    headers: Vec<(String, String)>,
+    zap_image: String,
+    zap_port: u16,
+    keep_zap: bool,
+) -> anyhow::Result<(Scanner, Option<zap_managed::ZapManaged>)> {
+    match engine {
+        "mock" => {
+            let scanner = Scanner::new_with_headers(target.to_string(), config, true, headers)?;
+            Ok((scanner, None))
+        }
+        "zap" => {
+            Display::section_header("Starting ZAP Engine");
+            let spinner = Display::spinner("Starting managed ZAP container...");
 
-    let mut scanner = if use_mock {
-        Scanner::new_with_headers(target.clone(), config, true, effective_headers)?
-    } else if engine == "zap" {
-        // Start managed ZAP container
-        Display::section_header("Starting ZAP Engine");
-        let spinner = Display::spinner("Starting managed ZAP container...");
+            let managed = zap_managed::start_managed_zap(zap_managed::ManagedZapOptions {
+                image: zap_image,
+                host_port: zap_port,
+                api_key: None,
+                keep: keep_zap,
+            })
+            .await?;
 
-        let managed = zap_managed::start_managed_zap(zap_managed::ManagedZapOptions {
-            image: zap_image,
-            host_port: zap_port,
-            api_key: None, // For now, no API key required
-            keep: keep_zap,
-        })
-        .await?;
+            spinner.finish_with_message("✓ ZAP container started");
+            Display::status("ZAP URL", &managed.zap_url);
 
-        spinner.finish_with_message("✓ ZAP container started");
-        Display::status("ZAP URL", &managed.zap_url);
-
-        let scanner =
-            Scanner::new_with_managed_zap(target.clone(), config, &managed, effective_headers)?;
-        _managed_zap = Some(managed);
-        scanner
-    } else {
-        return Err(anyhow::anyhow!(
+            let scanner =
+                Scanner::new_with_managed_zap(target.to_string(), config, &managed, headers)?;
+            Ok((scanner, Some(managed)))
+        }
+        _ => Err(anyhow::anyhow!(
             "Invalid engine: {}. Use 'mock' or 'zap'",
             engine
-        ));
-    };
-
-    if verbose {
-        Display::info("Verbose logging enabled");
-        scanner.set_verbose(true);
+        )),
     }
+}
 
-    // Configure scan parameters from profile/CLI
-    scanner.set_scan_params(
-        scan_max_urls,
-        Some(scan_attack_strength.to_string()),
-        Some(scan_alert_threshold.to_string()),
-    );
+/// Execute the scan, display results, handle baseline comparison, save report,
+/// and return the CI exit code.
+async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
+    let use_mock = opts.engine == "mock";
 
     if use_mock {
         Display::warning("Using mock ZAP client (test mode)");
@@ -449,18 +569,18 @@ async fn run_scan(
 
     // Run scan with spinner
     Display::section_header("Security Scan");
-    Display::status("Target", &target);
-    Display::status("Profile", &profile);
-    Display::status("Format", &format);
-    if let Some(ref path) = config_path {
+    Display::status("Target", opts.target);
+    Display::status("Profile", opts.profile);
+    Display::status("Format", opts.format);
+    if let Some(ref path) = opts.config_path {
         Display::status("Config", path.to_string_lossy().as_ref());
     }
 
     let spinner = Display::spinner("Executing security scan...");
-    let mut report = scanner.run().await?;
+    let mut report = opts.scanner.run().await?;
     spinner.finish_with_message("✓ Scan completed");
 
-    report.filter_by_severity(&min_severity)?;
+    report.filter_by_severity(opts.min_severity)?;
 
     // Display results
     Display::vulnerability_summary(
@@ -471,7 +591,6 @@ async fn run_scan(
         report.low_count(),
     );
 
-    // Display CVSS metrics if there are alerts
     if report.vulnerability_count() > 0 {
         Display::cvss_metrics(report.average_cvss_score(), report.max_cvss_score());
         let breakdown = report.risk_breakdown();
@@ -479,9 +598,8 @@ async fn run_scan(
     }
 
     // Perform comparison if baseline is provided
-    if let Some(baseline_file) = baseline_path {
-        // Check if baseline comparison is available
-        if !features::is_feature_available(&license, features::Feature::BaselineComparison) {
+    if let Some(baseline_file) = opts.baseline_path {
+        if !features::is_feature_available(opts.license, features::Feature::BaselineComparison) {
             println!(
                 "{}",
                 features::get_upgrade_message(features::Feature::BaselineComparison)
@@ -500,12 +618,11 @@ async fn run_scan(
         }
     }
 
-    if let Some(output_path) = output {
-        // Check format feature gating
-        let format_lower = format.to_lowercase();
+    if let Some(output_path) = opts.output {
+        let format_lower = opts.format.to_lowercase();
         let format_allowed = match format_lower.as_str() {
             "html" => {
-                if !features::is_feature_available(&license, features::Feature::HtmlOutput) {
+                if !features::is_feature_available(opts.license, features::Feature::HtmlOutput) {
                     println!(
                         "{}",
                         features::get_upgrade_message(features::Feature::HtmlOutput)
@@ -516,7 +633,7 @@ async fn run_scan(
                 }
             }
             "yaml" | "yml" => {
-                if !features::is_feature_available(&license, features::Feature::YamlOutput) {
+                if !features::is_feature_available(opts.license, features::Feature::YamlOutput) {
                     println!(
                         "{}",
                         features::get_upgrade_message(features::Feature::YamlOutput)
@@ -526,11 +643,11 @@ async fn run_scan(
                     true
                 }
             }
-            _ => true, // JSON, SARIF are free
+            _ => true,
         };
 
         if format_allowed {
-            report.save(&output_path, &format)?;
+            report.save(&output_path, opts.format)?;
             Display::success(&format!("Report saved to: {}", output_path.display()));
         } else {
             Display::warning("Saving report as JSON (Pro required for HTML/YAML)");
@@ -544,18 +661,18 @@ async fn run_scan(
 
     // Show license summary at end of scan
     println!("\n{}", "=".repeat(50));
-    if license.effective_plan() == license::Plan::Free {
+    if opts.license.effective_plan() == license::Plan::Free {
         Display::info(
             "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
         );
         Display::info("Learn more: https://github.com/tsun-dev/tsun#pricing");
     } else {
-        println!("📊 {}", features::format_license_summary(&license));
+        println!("📊 {}", features::format_license_summary(opts.license));
     }
 
     // Determine exit code based on exit_on_severity threshold
-    let exit_code = if exit_on_severity != "none" {
-        match report::ScanReport::parse_severity(&exit_on_severity) {
+    let exit_code = if opts.exit_on_severity != "none" {
+        match report::ScanReport::parse_severity(opts.exit_on_severity) {
             Ok(threshold) => {
                 if report.alerts.iter().any(|a| {
                     let alert_severity = report::ScanReport::parse_severity(&a.riskcode)
@@ -564,7 +681,7 @@ async fn run_scan(
                 }) {
                     Display::error(&format!(
                         "Scan failed: found vulnerabilities at or above {} severity",
-                        exit_on_severity
+                        opts.exit_on_severity
                     ));
                     1
                 } else {
@@ -574,7 +691,7 @@ async fn run_scan(
             Err(_) => {
                 Display::warning(&format!(
                     "Invalid exit_on_severity value: {}",
-                    exit_on_severity
+                    opts.exit_on_severity
                 ));
                 0
             }
@@ -582,14 +699,6 @@ async fn run_scan(
     } else {
         0
     };
-
-    // Explicitly cleanup ZAP container if we started one
-    if !use_mock {
-        if let Some(managed) = _managed_zap {
-            Display::info("Cleaning up ZAP container...");
-            managed.stop().await?;
-        }
-    }
 
     Ok(exit_code)
 }

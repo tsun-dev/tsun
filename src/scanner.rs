@@ -1,5 +1,6 @@
 use crate::config::ScanConfig;
 use crate::report::ScanReport;
+use crate::zap::ScanEngine;
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -8,7 +9,7 @@ pub struct Scanner {
     target: String,
     config: ScanConfig,
     verbose: bool,
-    zap_client: Arc<crate::zap::ZapClient>,
+    engine: Arc<dyn ScanEngine>,
     max_urls: Option<u32>,
     attack_strength: Option<String>,
     alert_threshold: Option<String>,
@@ -27,10 +28,10 @@ impl Scanner {
         use_mock: bool,
         headers: Vec<(String, String)>,
     ) -> Result<Self> {
-        let zap_client = if use_mock {
-            Arc::new(crate::zap::ZapClient::mock()?)
+        let engine: Arc<dyn ScanEngine> = if use_mock {
+            Arc::from(crate::zap::new_mock_client()?)
         } else {
-            Arc::new(crate::zap::ZapClient::new_with_headers(
+            Arc::from(crate::zap::new_real_client_with_headers(
                 &config.zap.host,
                 &headers,
             )?)
@@ -40,7 +41,7 @@ impl Scanner {
             target,
             config,
             verbose: false,
-            zap_client,
+            engine,
             max_urls: None,
             attack_strength: None,
             alert_threshold: None,
@@ -54,7 +55,7 @@ impl Scanner {
         managed: &crate::zap_managed::ZapManaged,
         headers: Vec<(String, String)>,
     ) -> Result<Self> {
-        let zap_client = Arc::new(crate::zap::ZapClient::new_with_headers(
+        let engine: Arc<dyn ScanEngine> = Arc::from(crate::zap::new_real_client_with_headers(
             &managed.zap_url,
             &headers,
         )?);
@@ -63,7 +64,7 @@ impl Scanner {
             target,
             config,
             verbose: false,
-            zap_client,
+            engine,
             max_urls: None,
             attack_strength: None,
             alert_threshold: None,
@@ -97,7 +98,7 @@ impl Scanner {
 
         // Start new scan with parameters
         let scan_id = self
-            .zap_client
+            .engine
             .start_scan(
                 &self.target,
                 self.max_urls,
@@ -111,7 +112,7 @@ impl Scanner {
         }
 
         // Wait for scan to complete
-        self.zap_client
+        self.engine
             .wait_for_scan(&scan_id, self.config.timeout.unwrap_or(1800))
             .await?;
 
@@ -120,7 +121,7 @@ impl Scanner {
         }
 
         // Get scan results
-        let alerts = self.zap_client.get_alerts(&self.target).await?;
+        let alerts = self.engine.get_alerts(&self.target).await?;
 
         let report = ScanReport::from_alerts(self.target.clone(), alerts);
 

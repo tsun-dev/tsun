@@ -1,4 +1,5 @@
 use crate::report::Alert;
+use crate::zap::ScanEngine;
 use anyhow::Result;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -11,19 +12,28 @@ impl MockZapClient {
     pub fn new() -> Result<Self> {
         Ok(MockZapClient)
     }
+}
 
-    pub async fn check_health(&self) -> Result<()> {
+#[async_trait::async_trait]
+impl ScanEngine for MockZapClient {
+    async fn check_health(&self) -> Result<()> {
         // Simulate network latency
         sleep(Duration::from_millis(100)).await;
         Ok(())
     }
 
-    pub async fn start_scan(&self, _target: &str) -> Result<String> {
+    async fn start_scan(
+        &self,
+        _target: &str,
+        _max_urls: Option<u32>,
+        _attack_strength: Option<&str>,
+        _alert_threshold: Option<&str>,
+    ) -> Result<String> {
         // Return a fake scan ID
         Ok("12345".to_string())
     }
 
-    pub async fn wait_for_scan(&self, scan_id: &str, _timeout_secs: u64) -> Result<()> {
+    async fn wait_for_scan(&self, scan_id: &str, _timeout_secs: u64) -> Result<()> {
         tracing::info!("Mock scan {} progressing: 25%", scan_id);
         sleep(Duration::from_millis(100)).await;
         tracing::info!("Mock scan {} progressing: 50%", scan_id);
@@ -34,7 +44,7 @@ impl MockZapClient {
         Ok(())
     }
 
-    pub async fn get_alerts(&self, target: &str) -> Result<Vec<Alert>> {
+    async fn get_alerts(&self, target: &str) -> Result<Vec<Alert>> {
         Ok(generate_mock_alerts(target))
     }
 }

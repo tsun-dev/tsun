@@ -14,22 +14,22 @@ Tsun offers a **Free tier** for basic security scanning and a **Pro tier** for t
 - ✅ Managed ZAP Docker lifecycle
 - ✅ Mock testing mode
 
-### Pro ($49/month per team)
+### Pro Team ($199/month)
 Everything in Free, plus:
 - ✅ **Baseline Comparison** - See only NEW/FIXED vulnerabilities
 - ✅ **Deep Profile** - Thorough scans (60-120 min)
+- ✅ **Custom Scan Profiles** - Define your own timing and parameters
 - ✅ **HTML Reports** - Beautiful, shareable documentation
 - ✅ **YAML Output** - Easy integration with custom tools
 - ✅ **GitHub SARIF Upload** - Automated Code Scanning integration
-- ✅ **Ignore Rules** - Reduce false positives (coming soon)
-- ✅ **Priority Support**
+- ✅ **CI Noise Reduction** - Graceful fallbacks, no hard failures
 
-### Pro Plus ($149/month per team)
-Everything in Pro, plus:
-- ✅ **Custom Scan Policies** - Fine-tune attack strength per vulnerability type
-- ✅ **Advanced Auth Strategies** - OAuth, SAML, multi-step flows
-- ✅ **Team Collaboration** - Shared baselines and ignore rules
-- ✅ **SLA Support** - 24-hour response time
+### Pro Plus ($399/month)
+Everything in Pro Team, plus:
+- ✅ **Priority Onboarding & Support** - Dedicated help getting started
+- ✅ **Higher-Frequency CI Usage** - Designed for larger teams (25-50 devs)
+
+*Note: Pro Plus has no additional features in the binary - it's a pricing tier for teams needing priority support.*
 
 ## Managing Your License
 
@@ -144,18 +144,22 @@ The scan **continues with Free tier defaults** - no hard failures.
 
 > **Note**: Tsun Pro is currently in early access. To get a Pro license, open a GitHub issue with the "Pro License Request" label or check the README for the latest instructions.
 
-### For Individuals & Bootstrapped Startups
-- **Free**: $0/month - Perfect for side projects and CI basics
-- **Pro**: $49/month per team - Noise reduction, baselines, deep scans
+### Free
+- **$0/month** - Unlimited time, no credit card required
+- Perfect for individual developers, evaluation, and basic CI usage
+- Authenticated scans, CI profile, JSON/SARIF output, exit-code gating
 
-### For Teams (5-50 engineers)
-- **Pro**: $49/month per team (flat rate, unlimited scans)
-- **Pro Plus**: $149/month per team (advanced features + SLA)
+### Pro Team
+- **$199/month** (Optional: $1,990/year)
+- For small SaaS teams (3-20 developers)
+- Baselines, deep scans, custom profiles, HTML/YAML reports, GitHub SARIF upload
+- Flat rate, unlimited scans, no per-seat pricing
 
-### Enterprise (50+ engineers)
-- Custom pricing
-- SSO, audit logs, dedicated support
-- Open a GitHub issue for enterprise inquiries
+### Pro Plus
+- **$399/month** (Optional: $3,990/year)
+- For larger teams (25-50 developers)
+- Same features as Pro Team + priority onboarding and support
+- No additional binary features - pricing tier only
 
 ## Why Pro?
 
@@ -170,10 +174,11 @@ The biggest pain points in DAST adoption:
 ### Do I need Pro for CI/CD?
 No! The Free tier is designed for CI/CD with the `ci` profile (10-15 min scans).
 
-Pro is for teams that want:
+Pro Team is for teams that want:
 - **Baseline comparison** (reduce PR noise)
 - **Deep scans** (pre-release verification)
 - **Better reporting** (HTML for stakeholders)
+- **Custom profiles** (tailor scans to your needs)
 
 ### What happens if I downgrade?
 - Your existing reports and baselines are preserved
@@ -196,8 +201,8 @@ Yes! For teams with 10+ developers, open a GitHub issue to discuss.
 ## Support
 
 - **Free**: Community support via GitHub Issues
-- **Pro**: GitHub Issues with priority response
-- **Pro Plus**: GitHub Issues + direct email access to maintainer
+- **Pro Team**: GitHub Issues with priority response
+- **Pro Plus**: Priority onboarding + dedicated support
 
 Tsun is founder-built and maintained. Questions or feedback? Open a GitHub issue.
 

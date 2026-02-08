@@ -10,13 +10,13 @@ curl -sSL https://raw.githubusercontent.com/tsun-dev/tsun/main/install.sh | bash
 **Manual download:**
 ```bash
 # Linux x86_64
-curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
 
 # macOS (Intel)
-curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
+curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-x86_64.tar.gz | tar xz
 
 # macOS (Apple Silicon)
-curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
+curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-aarch64.tar.gz | tar xz
 ```
 
 ## Common Commands
@@ -72,7 +72,7 @@ tsun scan --target URL --engine zap --baseline baseline.json
 
 ```yaml
 - name: Download tsun
-  run: curl -L https://github.com/cWashington91/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
+  run: curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-linux-x86_64.tar.gz | tar xz
 
 - name: Security scan
   run: |
@@ -153,8 +153,8 @@ validation.rs    → Input validation
 
 ## Links
 
-- **Repo**: https://github.com/cWashington91/tsun
-- **Releases**: https://github.com/cWashington91/tsun/releases
-- **Issues**: https://github.com/cWashington91/tsun/issues
+- **Repo**: https://github.com/tsun-dev/tsun
+- **Releases**: https://github.com/tsun-dev/tsun/releases
+- **Issues**: https://github.com/tsun-dev/tsun/issues
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md)

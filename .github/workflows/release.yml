@@ -74,11 +74,15 @@ jobs:
           cd target/${{ matrix.target }}/release
           tar czf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
 
-      - name: Validate binary
+      - name: Validate binary (tarball contents)
         run: |
           tar -tzf ${{ matrix.asset_name }}.tar.gz | grep -q "^${{ matrix.artifact_name }}$"
           tar -xzf ${{ matrix.asset_name }}.tar.gz
           chmod +x ${{ matrix.artifact_name }}
+
+      - name: Validate binary (execution test)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        run: |
           ./${{ matrix.artifact_name }} --version
           ./${{ matrix.artifact_name }} --help | grep -q "Security scanning tool"
 

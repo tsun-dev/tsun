@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-08
+
+### Added
+- **QA automation infrastructure**: Comprehensive smoke test suite with 21 automated tests
+  - `scripts/qa_smoke.sh` with deterministic checks for Free/Pro features, auth, exit-codes, and validation
+  - Environment-gated real ZAP tests behind `TSUN_RUN_ZAP=1` flag
+  - Vendored SARIF 2.1.0 schema (111KB) for offline validation
+  - PR/push CI workflow (`.github/workflows/smoke-tests.yml`) with fast mock-only tests
+  - Nightly/manual workflow (`.github/workflows/smoke-tests-nightly.yml`) with real ZAP tests
+  - Release workflow artifact validation (binary version check and help text verification)
+- Cargo config (`.cargo/config.toml`) to set `OPENSSL_NO_VENDOR=1` globally for project
+
+### Fixed
+- **Custom profile Pro gating**: Custom profiles now require Pro license (previously unprotected)
+  - Enforces same Pro license check as Deep profile
+  - Shows upgrade message and falls back to 'ci' profile on Free tier
+- **CLI help accuracy**: Removed unsupported "xml" format from `--format` help text
+  - Help now correctly lists only supported formats: json, yaml, html, sarif
+  - Validation logic was already correct, only help text needed update
+- **Build compatibility**: OpenSSL build errors resolved across all cargo commands and CI workflows
+  - Added `OPENSSL_NO_VENDOR=1` to all CI workflow build steps
+  - Eliminates perl FindBin.pm module dependency errors
+
 ## [0.3.0] - 2026-02-07
 
 ### Changed

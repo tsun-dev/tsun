@@ -1,0 +1,79 @@
+name: Smoke Tests (Nightly)
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_zap:
+        description: 'Run real ZAP tests (requires Docker)'
+        required: false
+        default: '1'
+        type: choice
+        options:
+          - '0'
+          - '1'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  smoke-tests-with-zap:
+    name: Smoke Tests (Real ZAP)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target directory
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tsun
+        run: cargo build --release
+
+      - name: Add tsun to PATH
+        run: echo "${{ github.workspace }}/target/release" >> $GITHUB_PATH
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install jsonschema
+
+      - name: Pull ZAP Docker image
+        run: docker pull zaproxy/zap-stable:latest
+
+      - name: Run smoke tests with real ZAP
+        run: ./scripts/qa_smoke.sh
+        env:
+          TSUN_RUN_ZAP: ${{ github.event.inputs.run_zap || '1' }}
+
+      - name: Check for leftover ZAP containers
+        if: always()
+        run: |
+          LEFTOVER=$(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}' | wc -l)
+          if [ "$LEFTOVER" -gt 0 ]; then
+            echo "⚠️  WARNING: Found $LEFTOVER leftover ZAP container(s)"
+            docker ps -a --filter "ancestor=zaproxy/zap-stable"
+            docker rm -f $(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}')
+          else
+            echo "✅ No leftover ZAP containers"
+          fi

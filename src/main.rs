@@ -42,7 +42,7 @@ enum Commands {
         #[arg(short, long)]
         config: Option<PathBuf>,
 
-        /// Output report format (json, html, xml)
+        /// Output report format (json, yaml, html, sarif)
         #[arg(short, long, default_value = "json")]
         format: String,
 
@@ -406,16 +406,24 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
 
 /// Check if the requested profile is licensed; return the effective profile name.
 fn check_profile_access(license: &license::License, profile: &str) -> String {
-    if profile == "deep" && !features::is_feature_available(license, features::Feature::DeepProfile)
-    {
-        println!(
-            "{}",
-            features::get_upgrade_message(features::Feature::DeepProfile)
-        );
-        Display::info("Falling back to 'ci' profile");
-        "ci".to_string()
-    } else {
-        profile.to_string()
+    match profile {
+        "deep" if !features::is_feature_available(license, features::Feature::DeepProfile) => {
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::DeepProfile)
+            );
+            Display::info("Falling back to 'ci' profile");
+            "ci".to_string()
+        }
+        "custom" if !features::is_feature_available(license, features::Feature::CustomProfile) => {
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::CustomProfile)
+            );
+            Display::info("Falling back to 'ci' profile");
+            "ci".to_string()
+        }
+        _ => profile.to_string(),
     }
 }
 

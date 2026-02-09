@@ -40,6 +40,8 @@ jobs:
 
       - name: Build tsun
         run: cargo build --release
+        env:
+          OPENSSL_NO_VENDOR: 1
 
       - name: Add tsun to PATH
         run: echo "${{ github.workspace }}/target/release" >> $GITHUB_PATH

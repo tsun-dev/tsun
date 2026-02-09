@@ -80,7 +80,7 @@ jobs:
           tar -xzf ${{ matrix.asset_name }}.tar.gz
           chmod +x ${{ matrix.artifact_name }}
           ./${{ matrix.artifact_name }} --version
-          ./${{ matrix.artifact_name }} --help | grep -q "Security scanning CLI"
+          ./${{ matrix.artifact_name }} --help | grep -q "Security scanning tool"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

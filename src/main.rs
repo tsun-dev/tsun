@@ -408,12 +408,18 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
 fn check_profile_access(license: &license::License, profile: &str) -> String {
     match profile {
         "deep" if !features::is_feature_available(license, features::Feature::DeepProfile) => {
-            println!("{}", features::get_upgrade_message(features::Feature::DeepProfile));
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::DeepProfile)
+            );
             Display::info("Falling back to 'ci' profile");
             "ci".to_string()
         }
         "custom" if !features::is_feature_available(license, features::Feature::CustomProfile) => {
-            println!("{}", features::get_upgrade_message(features::Feature::CustomProfile));
+            println!(
+                "{}",
+                features::get_upgrade_message(features::Feature::CustomProfile)
+            );
             Display::info("Falling back to 'ci' profile");
             "ci".to_string()
         }

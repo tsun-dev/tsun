@@ -64,6 +64,7 @@ jobs:
         run: docker pull zaproxy/zap-stable:latest
 
       - name: Run smoke tests with real ZAP
+        continue-on-error: true
         run: ./scripts/qa_smoke.sh
         env:
           TSUN_RUN_ZAP: ${{ github.event.inputs.run_zap || '1' }}

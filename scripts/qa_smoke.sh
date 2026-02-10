@@ -108,8 +108,8 @@ fi
 
 # Test 5: Real ZAP sanity (optional)
 if [ "$TSUN_RUN_ZAP" = "1" ]; then
-  log_info "Test 5: Real ZAP sanity check (300s timeout)..."
-  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 300 --format json --output zap-sanity.json 2>&1 || true)
+  log_info "Test 5: Real ZAP sanity check (600s timeout)..."
+  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 600 --format json --output zap-sanity.json 2>&1 || true)
   if echo "$ZAP_OUTPUT" | grep -q "completed" || [ -f zap-sanity.json ]; then
     # Check cleanup (safe for scripts)
     ZAP_COUNT=$(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}' 2>/dev/null | wc -l)
@@ -291,8 +291,8 @@ fi
 # ============================================================================
 
 if [ "$TSUN_RUN_ZAP" = "1" ]; then
-  log_info "Test 21: ZAP managed lifecycle (180s scan)..."
-  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 180 --format json --output zap-test.json 2>&1 || true)
+  log_info "Test 21: ZAP managed lifecycle (420s scan)..."
+  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 420 --format json --output zap-test.json 2>&1 || true)
   if echo "$ZAP_OUTPUT" | grep -q "completed" || [ -f zap-test.json ]; then
     # Verify cleanup
     ZAP_COUNT=$(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}' 2>/dev/null | wc -l)

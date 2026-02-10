@@ -108,8 +108,9 @@ fi
 
 # Test 5: Real ZAP sanity (optional)
 if [ "$TSUN_RUN_ZAP" = "1" ]; then
-  log_info "Test 5: Real ZAP sanity check (90s timeout)..."
-  if tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 90 --format json --output zap-sanity.json 2>&1 | grep -q "completed" || [ -f zap-sanity.json ]; then
+  log_info "Test 5: Real ZAP sanity check (300s timeout)..."
+  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 300 --format json --output zap-sanity.json 2>&1 || true)
+  if echo "$ZAP_OUTPUT" | grep -q "completed" || [ -f zap-sanity.json ]; then
     # Check cleanup (safe for scripts)
     ZAP_COUNT=$(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}' 2>/dev/null | wc -l)
     if [ "$ZAP_COUNT" -eq 0 ]; then
@@ -119,7 +120,8 @@ if [ "$TSUN_RUN_ZAP" = "1" ]; then
       docker ps -a --filter "ancestor=zaproxy/zap-stable"
     fi
   else
-    log_fail "ZAP scan failed to complete"
+    log_fail "ZAP scan failed to complete (timeout or error)"
+    echo "ZAP output: $ZAP_OUTPUT" | head -20
   fi
 else
   log_skip "Real ZAP sanity (set TSUN_RUN_ZAP=1 to enable)"
@@ -289,8 +291,9 @@ fi
 # ============================================================================
 
 if [ "$TSUN_RUN_ZAP" = "1" ]; then
-  log_info "Test 21: ZAP managed lifecycle (60s scan)..."
-  if tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 60 --format json --output zap-test.json 2>&1 | grep -q "completed" || [ -f zap-test.json ]; then
+  log_info "Test 21: ZAP managed lifecycle (180s scan)..."
+  ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 180 --format json --output zap-test.json 2>&1 || true)
+  if echo "$ZAP_OUTPUT" | grep -q "completed" || [ -f zap-test.json ]; then
     # Verify cleanup
     ZAP_COUNT=$(docker ps -a --filter "ancestor=zaproxy/zap-stable" --format '{{.ID}}' 2>/dev/null | wc -l)
     if [ "$ZAP_COUNT" -eq 0 ]; then
@@ -300,7 +303,8 @@ if [ "$TSUN_RUN_ZAP" = "1" ]; then
       docker ps -a --filter "ancestor=zaproxy/zap-stable"
     fi
   else
-    log_fail "ZAP lifecycle scan failed"
+    log_fail "ZAP lifecycle scan failed (timeout or error)"
+    echo "ZAP output: $ZAP_OUTPUT" | head -20
   fi
 else
   log_skip "ZAP managed lifecycle (set TSUN_RUN_ZAP=1 to enable)"

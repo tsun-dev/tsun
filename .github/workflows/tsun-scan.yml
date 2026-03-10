@@ -87,11 +87,9 @@ jobs:
       #     git commit -m "Update security baseline [skip ci]"
       #     git push
 
-# What Pro unlocks:
+# What Tsun offers:
 # ✓ Baseline comparison - See only NEW vulnerabilities in PRs
 # ✓ Deep profile - Thorough scans for releases (60-120 min)
 # ✓ HTML reports - Beautiful, shareable documentation
 # ✓ YAML output - Easy integration with custom tools
 # ✓ Noise reduction - Focus on what matters
-#
-# See pricing in the README or open a GitHub issue

@@ -5,11 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-09
+
+### Changed
+- **Complete open source transition**: Removed all monetization and licensing features
+  - Eliminated Pro/Free tier distinctions entirely
+  - Removed license management system and CLI commands
+  - All features now available without restrictions or paywalls
+  - Deleted licensing documentation and pricing references
+
+### Removed
+- **License system**: Complete removal of license validation, JWT tokens, and feature gating
+  - Removed `license.rs` module and all license-related code
+  - Removed `tsun license` CLI command and subcommands
+  - Eliminated license status checking and upgrade prompts
+- **Pro-only features**: All previously gated features now freely available
+  - Baseline comparisons, deep/custom profiles, HTML/YAML/SARIF outputs
+  - GitHub SARIF upload functionality
+  - Advanced scan configurations and reporting
+- **Documentation cleanup**: Removed all references to paid tiers and licensing
+  - Updated README.md, CI templates, and workflow files
+  - Cleaned up GitLab CI and GitHub Actions examples
+
 ## [0.4.0] - 2026-02-08
 
 ### Added
 - **QA automation infrastructure**: Comprehensive smoke test suite with 21 automated tests
-  - `scripts/qa_smoke.sh` with deterministic checks for Free/Pro features, auth, exit-codes, and validation
+  - `scripts/qa_smoke.sh` with deterministic checks for features, auth, exit-codes, and validation
   - Environment-gated real ZAP tests behind `TSUN_RUN_ZAP=1` flag
   - Vendored SARIF 2.1.0 schema (111KB) for offline validation
   - PR/push CI workflow (`.github/workflows/smoke-tests.yml`) with fast mock-only tests
@@ -18,9 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cargo config (`.cargo/config.toml`) to set `OPENSSL_NO_VENDOR=1` globally for project
 
 ### Fixed
-- **Custom profile Pro gating**: Custom profiles now require Pro license (previously unprotected)
-  - Enforces same Pro license check as Deep profile
-  - Shows upgrade message and falls back to 'ci' profile on Free tier
 - **CLI help accuracy**: Removed unsupported "xml" format from `--format` help text
   - Help now correctly lists only supported formats: json, yaml, html, sarif
   - Validation logic was already correct, only help text needed update

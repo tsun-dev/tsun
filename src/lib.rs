@@ -7,7 +7,6 @@ pub mod config;
 pub mod display;
 pub mod features;
 pub mod html;
-pub mod license;
 pub mod report;
 pub mod sarif;
 pub mod scanner;

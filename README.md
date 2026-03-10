@@ -70,22 +70,16 @@ tsun scan --target https://testphp.vulnweb.com
 
 ---
 
-## Free vs Pro
+## Features
 
-**Free:**
-- Authenticated scans
-- CI profile (10–15 min)
-- JSON + SARIF output
-- Exit-code gating
+Tsun is a comprehensive security scanning tool with all features available:
 
-**Pro:**
-- Baseline comparisons (new/fixed/unchanged)
-- Deep scans (60–120 min)
-- HTML/YAML reports
-- GitHub SARIF upload
-- CI noise reduction
-
-**Details:** [LICENSING.md](LICENSING.md)
+- **Authenticated scans** - Support for headers, cookies, and login commands
+- **Multiple scan profiles** - CI (10-15 min), Deep (60-120 min), and Custom profiles
+- **Multiple output formats** - JSON, SARIF, HTML, and YAML reports
+- **Baseline comparisons** - See only new/fixed vulnerabilities
+- **GitHub SARIF upload** - Automated Code Scanning integration
+- **CI noise reduction** - Graceful fallbacks and smart exit-code gating
 
 ---
 

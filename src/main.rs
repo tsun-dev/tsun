@@ -6,7 +6,6 @@ mod config;
 mod display;
 mod features;
 mod html;
-mod license;
 mod report;
 mod sarif;
 mod scanner;
@@ -147,24 +146,8 @@ enum Commands {
         #[arg(long)]
         token: Option<String>,
     },
-    /// Manage Tsun Pro license
-    License {
-        #[command(subcommand)]
-        action: LicenseAction,
-    },
     /// Run diagnostics to check Tsun setup
     Doctor,
-}
-
-#[derive(Subcommand)]
-enum LicenseAction {
-    /// Set a license key
-    Set {
-        /// License key or path to license file
-        license: String,
-    },
-    /// Show current license status
-    Status,
 }
 
 /// Options for executing a scan and reporting results
@@ -178,7 +161,6 @@ struct ExecutionOptions<'a> {
     min_severity: &'a str,
     baseline_path: Option<PathBuf>,
     exit_on_severity: &'a str,
-    license: &'a license::License,
     scanner: Scanner,
 }
 
@@ -288,14 +270,6 @@ async fn main() -> anyhow::Result<()> {
         } => {
             run_upload_sarif(file, repo, commit, git_ref, token).await?;
         }
-        Commands::License { action } => match action {
-            LicenseAction::Set { license } => {
-                run_license_set(license)?;
-            }
-            LicenseAction::Status => {
-                run_license_status()?;
-            }
-        },
         Commands::Doctor => {
             run_doctor().await?;
         }
@@ -328,10 +302,8 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
         alert_threshold,
     } = opts;
 
-    // ── Phase 1: License & validation ───────────────────────────────────
-    let license = license::load_license()?;
-
-    let effective_profile = check_profile_access(&license, &profile);
+    // ── Phase 1: Validation ───────────────────────────────────
+    let effective_profile = check_profile_access(&profile);
 
     validate_scan_inputs(&target, &format, &config_path, &output)?;
 
@@ -388,7 +360,6 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
         min_severity: &min_severity,
         baseline_path,
         exit_on_severity: &exit_on_severity,
-        license: &license,
         scanner,
     })
     .await?;
@@ -404,27 +375,9 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
     Ok(exit_code)
 }
 
-/// Check if the requested profile is licensed; return the effective profile name.
-fn check_profile_access(license: &license::License, profile: &str) -> String {
-    match profile {
-        "deep" if !features::is_feature_available(license, features::Feature::DeepProfile) => {
-            println!(
-                "{}",
-                features::get_upgrade_message(features::Feature::DeepProfile)
-            );
-            Display::info("Falling back to 'ci' profile");
-            "ci".to_string()
-        }
-        "custom" if !features::is_feature_available(license, features::Feature::CustomProfile) => {
-            println!(
-                "{}",
-                features::get_upgrade_message(features::Feature::CustomProfile)
-            );
-            Display::info("Falling back to 'ci' profile");
-            "ci".to_string()
-        }
-        _ => profile.to_string(),
-    }
+/// Check if the requested profile is available (all profiles are now available)
+fn check_profile_access(profile: &str) -> String {
+    profile.to_string()
 }
 
 /// Validate all scan inputs before proceeding.
@@ -607,21 +560,13 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
 
     // Perform comparison if baseline is provided
     if let Some(baseline_file) = opts.baseline_path {
-        if !features::is_feature_available(opts.license, features::Feature::BaselineComparison) {
-            println!(
-                "{}",
-                features::get_upgrade_message(features::Feature::BaselineComparison)
-            );
-            Display::warning("Baseline comparison skipped (Pro feature)");
-        } else {
-            match report::ScanReport::load_from_file(&baseline_file) {
-                Ok(baseline_report) => {
-                    let comparison = report::ReportComparison::new(&baseline_report, &report);
-                    Display::comparison_report(&comparison);
-                }
-                Err(e) => {
-                    Display::warning(&format!("Failed to load baseline report: {}", e));
-                }
+        match report::ScanReport::load_from_file(&baseline_file) {
+            Ok(baseline_report) => {
+                let comparison = report::ReportComparison::new(&baseline_report, &report);
+                Display::comparison_report(&comparison);
+            }
+            Err(e) => {
+                Display::warning(&format!("Failed to load baseline report: {}", e));
             }
         }
     }
@@ -629,28 +574,8 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
     if let Some(output_path) = opts.output {
         let format_lower = opts.format.to_lowercase();
         let format_allowed = match format_lower.as_str() {
-            "html" => {
-                if !features::is_feature_available(opts.license, features::Feature::HtmlOutput) {
-                    println!(
-                        "{}",
-                        features::get_upgrade_message(features::Feature::HtmlOutput)
-                    );
-                    false
-                } else {
-                    true
-                }
-            }
-            "yaml" | "yml" => {
-                if !features::is_feature_available(opts.license, features::Feature::YamlOutput) {
-                    println!(
-                        "{}",
-                        features::get_upgrade_message(features::Feature::YamlOutput)
-                    );
-                    false
-                } else {
-                    true
-                }
-            }
+            "html" => true,
+            "yaml" | "yml" => true,
             _ => true,
         };
 
@@ -667,16 +592,9 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
         println!("\n{}", report.summary());
     }
 
-    // Show license summary at end of scan
+    // Show scan completion
     println!("\n{}", "=".repeat(50));
-    if opts.license.effective_plan() == license::Plan::Free {
-        Display::info(
-            "Free scan completed. Pro unlocks baseline comparisons and CI noise reduction.",
-        );
-        Display::info("Learn more: https://use-tsun.dev/#pricing");
-    } else {
-        println!("📊 {}", features::format_license_summary(opts.license));
-    }
+    Display::success("Scan completed successfully!");
 
     // Determine exit code based on exit_on_severity threshold
     let exit_code = if opts.exit_on_severity != "none" {
@@ -744,16 +662,6 @@ async fn run_upload_sarif(
     git_ref: Option<String>,
     token: Option<String>,
 ) -> anyhow::Result<()> {
-    // Check if SARIF upload is available
-    let license = license::load_license()?;
-    if !features::is_feature_available(&license, features::Feature::SarifUpload) {
-        println!(
-            "{}",
-            features::get_upgrade_message(features::Feature::SarifUpload)
-        );
-        return Err(anyhow::anyhow!("SARIF upload requires Tsun Pro"));
-    }
-
     // Basic validation
     if repo.is_none() {
         anyhow::bail!("--repo is required (owner/repo)");
@@ -821,101 +729,6 @@ fn setup_panic_hook() {
         zap_managed::cleanup_all_containers();
         original_hook(panic_info);
     }));
-}
-
-fn run_license_set(license_input: String) -> anyhow::Result<()> {
-    Display::section_header("License Management");
-
-    // Check if input is a file path or direct license string
-    let license_str = if std::path::Path::new(&license_input).exists() {
-        Display::info("Reading license from file...");
-        std::fs::read_to_string(&license_input)?
-    } else {
-        license_input
-    };
-
-    // Validate and save
-    match license::save_license(&license_str) {
-        Ok(()) => {
-            // Load to show details
-            let lic = license::load_license()?;
-            Display::success("License activated successfully!");
-            Display::status("Plan", &lic.claims.plan.to_string());
-            Display::status("Customer ID", &lic.claims.customer_id);
-            Display::status("Expires", &lic.claims.expires_at);
-
-            // Show what's unlocked
-            if lic.is_pro_or_higher() {
-                println!("\n✨ Pro features unlocked:");
-                for feature in features::get_pro_features() {
-                    println!("  • {}", feature.name());
-                }
-            }
-        }
-        Err(e) => {
-            Display::error(&format!("Failed to activate license: {}", e));
-            return Err(e);
-        }
-    }
-
-    Ok(())
-}
-
-fn run_license_status() -> anyhow::Result<()> {
-    Display::section_header("License Status");
-
-    let license = license::load_license()?;
-
-    Display::status("Plan", &license.effective_plan().to_string());
-    Display::status("Customer ID", &license.claims.customer_id);
-    Display::status("Issued", &license.claims.issued_at);
-    Display::status("Expires", &license.claims.expires_at);
-
-    match license.status {
-        license::LicenseStatus::Valid => {
-            Display::success("License is active");
-        }
-        license::LicenseStatus::GracePeriod { days_remaining } => {
-            Display::warning(&format!(
-                "License expired - grace period active ({} days remaining)",
-                days_remaining
-            ));
-            Display::info("Pro features will be disabled after grace period ends");
-        }
-        license::LicenseStatus::Expired => {
-            Display::error("License has expired");
-            Display::info("Pro features are disabled. See: https://use-tsun.dev/#pricing");
-        }
-    }
-
-    // Show available features
-    println!("\n📋 Available features:");
-    let all_features = vec![
-        features::Feature::BasicScan,
-        features::Feature::CiProfile,
-        features::Feature::AuthHeaders,
-        features::Feature::AuthCookies,
-        features::Feature::JsonOutput,
-        features::Feature::SarifOutput,
-        features::Feature::BaselineComparison,
-        features::Feature::DeepProfile,
-        features::Feature::HtmlOutput,
-        features::Feature::YamlOutput,
-        features::Feature::SarifUpload,
-    ];
-
-    for feature in all_features {
-        let available = features::is_feature_available(&license, feature);
-        let marker = if available { "✓" } else { "✗" };
-        let color = if available {
-            colored::Colorize::green
-        } else {
-            colored::Colorize::dimmed
-        };
-        println!("  {} {}", marker, color(feature.name()));
-    }
-
-    Ok(())
 }
 
 async fn run_doctor() -> anyhow::Result<()> {
@@ -998,29 +811,11 @@ async fn run_doctor() -> anyhow::Result<()> {
         }
     }
 
-    // Check 5: License status
-    print!("Checking license status... ");
-    let license = license::load_license()?;
-    match license.status {
-        license::LicenseStatus::Valid => {
-            println!("✓ {} license active", license.effective_plan());
-            checks_passed += 1;
-        }
-        license::LicenseStatus::GracePeriod { days_remaining } => {
-            println!("⚠ Grace period ({} days)", days_remaining);
-            checks_passed += 1;
-        }
-        license::LicenseStatus::Expired => {
-            println!("⚠ Free tier (license expired)");
-            checks_passed += 1;
-        }
-    }
-
-    // Check 6: Config directory
+    // Check 5: Config directory
     print!("Checking config directory... ");
-    match license::get_license_path() {
-        Ok(path) => {
-            println!("✓ {}", path.parent().unwrap().display());
+    match std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+        Ok(home) => {
+            println!("✓ {}/.config/tsun", home);
             checks_passed += 1;
         }
         Err(_) => {

@@ -128,52 +128,52 @@ else
 fi
 
 # ============================================================================
-# PRO FEATURE GATING (Free Tier Blocked)
+# FEATURE VERIFICATION (All features available)
 # ============================================================================
 
-# Test 6: HTML gating
-log_info "Test 6: HTML output gating (Free tier)..."
-tsun scan --target https://testphp.vulnweb.com --format html --output test.html --engine mock 2>&1 | tee /tmp/html-gating.log >/dev/null
-if [ ! -f test.html ] && grep -qi "Tsun Pro" /tmp/html-gating.log; then
-  log_pass "HTML output gating works (Free tier blocked)"
+# Test 6: HTML output
+log_info "Test 6: HTML output..."
+tsun scan --target https://testphp.vulnweb.com --format html --output test.html --engine mock >/dev/null 2>&1
+if [ -f test.html ]; then
+  log_pass "HTML output works"
 else
-  log_fail "HTML gating not working correctly"
+  log_fail "HTML output failed"
 fi
 
-# Test 7: YAML gating
-log_info "Test 7: YAML output gating (Free tier)..."
-tsun scan --target https://testphp.vulnweb.com --format yaml --output test.yaml --engine mock 2>&1 | tee /tmp/yaml-gating.log >/dev/null
-if [ ! -f test.yaml ] && grep -qi "Tsun Pro" /tmp/yaml-gating.log; then
-  log_pass "YAML output gating works (Free tier blocked)"
+# Test 7: YAML output
+log_info "Test 7: YAML output..."
+tsun scan --target https://testphp.vulnweb.com --format yaml --output test.yaml --engine mock >/dev/null 2>&1
+if [ -f test.yaml ]; then
+  log_pass "YAML output works"
 else
-  log_fail "YAML gating not working correctly"
+  log_fail "YAML output failed"
 fi
 
-# Test 8: Baseline gating
-log_info "Test 8: Baseline comparison gating (Free tier)..."
-tsun scan --target https://testphp.vulnweb.com --baseline test.json --engine mock 2>&1 | tee /tmp/baseline-gating.log >/dev/null
-if grep -qi "Tsun Pro" /tmp/baseline-gating.log || grep -qi "baseline" /tmp/baseline-gating.log; then
-  log_pass "Baseline comparison gating works (Free tier warned)"
+# Test 8: Baseline comparison
+log_info "Test 8: Baseline comparison..."
+tsun scan --target https://testphp.vulnweb.com --baseline test.json --engine mock >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  log_pass "Baseline comparison works"
 else
-  log_fail "Baseline gating not working correctly"
+  log_fail "Baseline comparison failed"
 fi
 
-# Test 9: Deep profile gating
-log_info "Test 9: Deep profile gating (Free tier)..."
-tsun scan --target https://testphp.vulnweb.com --profile deep --engine mock 2>&1 | tee /tmp/deep-gating.log >/dev/null
-if grep -qi "Tsun Pro\|falling back" /tmp/deep-gating.log; then
-  log_pass "Deep profile gating works (Free tier fallback)"
+# Test 9: Deep profile
+log_info "Test 9: Deep profile..."
+tsun scan --target https://testphp.vulnweb.com --profile deep --engine mock >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  log_pass "Deep profile works"
 else
-  log_fail "Deep profile gating not working correctly"
+  log_fail "Deep profile failed"
 fi
 
-# Test 10: Custom profile gating
-log_info "Test 10: Custom profile gating (Free tier)..."
-tsun scan --target https://testphp.vulnweb.com --profile custom --engine mock 2>&1 | tee /tmp/custom-gating.log >/dev/null
-if grep -qi "Tsun Pro\|falling back" /tmp/custom-gating.log; then
-  log_pass "Custom profile gating works (Free tier fallback)"
+# Test 10: Custom profile
+log_info "Test 10: Custom profile..."
+tsun scan --target https://testphp.vulnweb.com --profile custom --engine mock >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  log_pass "Custom profile works"
 else
-  log_fail "Custom profile gating not working correctly"
+  log_fail "Custom profile failed"
 fi
 
 # ============================================================================
@@ -264,20 +264,8 @@ else
   log_fail "Invalid format not rejected properly"
 fi
 
-# ============================================================================
-# LICENSE MANAGEMENT
-# ============================================================================
-
-# Test 19: License status
-log_info "Test 19: License status command..."
-if tsun license status >/dev/null 2>&1; then
-  log_pass "License status command works"
-else
-  log_fail "License status command failed"
-fi
-
-# Test 20: Init config
-log_info "Test 20: Init config template..."
+# Test 19: Init config
+log_info "Test 19: Init config template..."
 rm -f tsun.yaml
 tsun init >/dev/null 2>&1
 if [ -f tsun.yaml ]; then
@@ -291,7 +279,7 @@ fi
 # ============================================================================
 
 if [ "$TSUN_RUN_ZAP" = "1" ]; then
-  log_info "Test 21: ZAP managed lifecycle (420s scan)..."
+  log_info "Test 20: ZAP managed lifecycle (420s scan)..."
   ZAP_OUTPUT=$(tsun scan --target http://testphp.vulnweb.com --engine zap --timeout 420 --format json --output zap-test.json 2>&1 || true)
   if echo "$ZAP_OUTPUT" | grep -q "completed" || [ -f zap-test.json ]; then
     # Verify cleanup

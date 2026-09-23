@@ -5,11 +5,13 @@
 pub mod auth;
 pub mod config;
 pub mod display;
-pub mod features;
+pub mod fingerprint;
 pub mod html;
+pub mod ignore;
 pub mod report;
 pub mod sarif;
 pub mod scanner;
+pub mod severity;
 pub mod validation;
 pub mod zap;
 pub mod zap_managed;
@@ -53,11 +55,34 @@ mod tests {
         let report: crate::report::ScanReport =
             scanner.run().await.expect("Failed to run mock scan");
 
-        // Verify we got the expected mock vulnerabilities
-        assert_eq!(report.critical_count(), 0);
+        // The mock set spans every severity, including a Critical (High risk
+        // at Confirmed confidence) and an Informational.
+        assert!(report.critical_count() > 0);
         assert!(report.high_count() > 0);
         assert!(report.medium_count() > 0);
         assert!(report.low_count() > 0);
+        assert!(report.info_count() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_mock_reports_are_labelled_as_mock() {
+        let scanner = Scanner::new(
+            "https://example.com".to_string(),
+            ScanConfig::default(),
+            true,
+        )
+        .expect("Failed to create scanner");
+
+        let report = scanner.run().await.expect("Failed to run mock scan");
+
+        assert_eq!(report.engine, "mock");
+        assert!(report.is_mock());
+
+        let html = crate::html::generate_html_report(&report);
+        assert!(
+            html.contains("fabricated"),
+            "HTML from a mock scan must say so"
+        );
     }
 
     #[tokio::test]
@@ -161,27 +186,27 @@ mod tests {
             scanner.run().await.expect("Failed to run mock scan");
 
         let original_count = report.vulnerability_count();
+        let info_count = report.info_count();
+        assert!(
+            info_count > 0,
+            "fixture should contain informational findings"
+        );
+
         report.filter_by_severity("low").expect("Filter failed");
 
-        // Should have all alerts (nothing filtered)
-        assert_eq!(report.vulnerability_count(), original_count);
+        // "low" now excludes informational, which used to collapse into it.
+        assert_eq!(report.vulnerability_count(), original_count - info_count);
+        assert_eq!(report.info_count(), 0);
     }
 
     #[test]
     fn test_parse_severity() {
-        assert_eq!(
-            crate::report::ScanReport::parse_severity("high").unwrap(),
-            crate::report::SeverityLevel::High
-        );
-        assert_eq!(
-            crate::report::ScanReport::parse_severity("critical").unwrap(),
-            crate::report::SeverityLevel::Critical
-        );
-        assert_eq!(
-            crate::report::ScanReport::parse_severity("2").unwrap(),
-            crate::report::SeverityLevel::High
-        );
-        assert!(crate::report::ScanReport::parse_severity("invalid").is_err());
+        use crate::severity::Severity;
+
+        assert_eq!(Severity::parse("high").unwrap(), Severity::High);
+        assert_eq!(Severity::parse("critical").unwrap(), Severity::Critical);
+        assert_eq!(Severity::parse("info").unwrap(), Severity::Info);
+        assert!(Severity::parse("invalid").is_err());
     }
 
     #[tokio::test]
@@ -230,9 +255,8 @@ mod tests {
         // Verify we have vulnerability types
         assert!(!by_type.is_empty());
         assert!(
-            by_type.contains_key("Security Misconfiguration")
-                || by_type.contains_key("Cross-Site Scripting (XSS)")
-                || by_type.contains_key("Sensitive Data Exposure")
+            by_type.contains_key("SQL Injection")
+                || by_type.contains_key("Cross Site Scripting (Reflected)")
         );
 
         println!("Vulnerability Types: {:?}", by_type);
@@ -276,11 +300,8 @@ mod tests {
     #[test]
     fn test_report_load_from_json() {
         let _config = ScanConfig::default();
-        let report = crate::report::ScanReport {
-            target: "https://example.com".to_string(),
-            timestamp: chrono::Local::now().to_rfc3339(),
-            alerts: vec![],
-        };
+        let report =
+            crate::report::ScanReport::from_alerts("https://example.com".to_string(), vec![]);
 
         // Save and load
         let json_str = serde_json::to_string_pretty(&report).expect("Failed to serialize");

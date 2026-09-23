@@ -4,11 +4,13 @@ use std::path::PathBuf;
 mod auth;
 mod config;
 mod display;
-mod features;
+mod fingerprint;
 mod html;
+mod ignore;
 mod report;
 mod sarif;
 mod scanner;
+mod severity;
 mod validation;
 mod zap;
 mod zap_managed;
@@ -18,6 +20,7 @@ use auth::{load_cookie_header, parse_headers};
 use config::ScanConfig;
 use display::Display;
 use scanner::Scanner;
+use severity::Severity;
 
 #[derive(Parser)]
 #[command(name = "tsun")]
@@ -57,8 +60,8 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
 
-        /// Scan engine: mock or zap (default: mock)
-        #[arg(long, default_value = "mock")]
+        /// Scan engine: zap (real scan, requires Docker) or mock (fabricated findings, for testing)
+        #[arg(long, default_value = "zap")]
         engine: String,
 
         /// ZAP Docker image to use (stable, weekly, or full path)
@@ -80,6 +83,22 @@ enum Commands {
         /// Exit with code 1 if findings at or above this severity are found
         #[arg(long, default_value = "none")]
         exit_on_severity: String,
+
+        /// Only gate on findings that are new since --baseline (requires --baseline)
+        #[arg(long)]
+        fail_on_new: bool,
+
+        /// Suppress findings, e.g. plugin:10038 or "url:*/static/*" (repeatable)
+        #[arg(long)]
+        ignore: Vec<String>,
+
+        /// Path to a YAML file of ignore rules
+        #[arg(long)]
+        ignore_file: Option<PathBuf>,
+
+        /// API key for an external ZAP instance (managed ZAP generates its own)
+        #[arg(long, env = "TSUN_ZAP_API_KEY")]
+        zap_api_key: Option<String>,
         /// Static headers to include in requests (can be used multiple times)
         #[arg(long, value_delimiter = ',')]
         header: Vec<String>,
@@ -161,6 +180,8 @@ struct ExecutionOptions<'a> {
     min_severity: &'a str,
     baseline_path: Option<PathBuf>,
     exit_on_severity: &'a str,
+    fail_on_new: bool,
+    ignore_rules: Vec<ignore::IgnoreRule>,
     scanner: Scanner,
 }
 
@@ -178,6 +199,10 @@ struct ScanOptions {
     keep_zap: bool,
     baseline_path: Option<PathBuf>,
     exit_on_severity: String,
+    fail_on_new: bool,
+    ignore: Vec<String>,
+    ignore_file: Option<PathBuf>,
+    zap_api_key: Option<String>,
     headers: Vec<String>,
     cookies: Option<PathBuf>,
     login_command: Option<String>,
@@ -219,6 +244,10 @@ async fn main() -> anyhow::Result<()> {
             keep_zap,
             baseline,
             exit_on_severity,
+            fail_on_new,
+            ignore,
+            ignore_file,
+            zap_api_key,
             header,
             cookies,
             login_command,
@@ -241,6 +270,10 @@ async fn main() -> anyhow::Result<()> {
                 keep_zap,
                 baseline_path: baseline,
                 exit_on_severity,
+                fail_on_new,
+                ignore,
+                ignore_file,
+                zap_api_key,
                 headers: header,
                 cookies,
                 login_command,
@@ -292,6 +325,10 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
         keep_zap,
         baseline_path,
         exit_on_severity,
+        fail_on_new,
+        ignore,
+        ignore_file,
+        zap_api_key,
         headers,
         cookies,
         login_command,
@@ -303,9 +340,13 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
     } = opts;
 
     // ── Phase 1: Validation ───────────────────────────────────
-    let effective_profile = check_profile_access(&profile);
-
     validate_scan_inputs(&target, &format, &config_path, &output)?;
+    validate_profile(&profile)?;
+    validate_severity_flags(&min_severity, &exit_on_severity)?;
+
+    if fail_on_new && baseline_path.is_none() {
+        anyhow::bail!("--fail-on-new requires --baseline <file> to compare against");
+    }
 
     // ── Phase 2: Config & profile resolution ────────────────────────────
     let mut config = if let Some(ref path) = config_path {
@@ -314,8 +355,13 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
         ScanConfig::default()
     };
 
+    // A CLI key beats the config file, which beats the container default.
+    if let Some(key) = zap_api_key {
+        config.zap.api_key = Some(key);
+    }
+
     let resolved = config::resolve_profile(
-        &effective_profile,
+        &profile,
         &mut config,
         timeout,
         max_urls,
@@ -323,8 +369,29 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
         alert_threshold,
     );
 
-    // ── Phase 3: Auth preparation ───────────────────────────────────────
-    let effective_headers = prepare_auth(login_command, &headers, cookies, verbose);
+    // ── Phase 3: Auth and suppression rules ─────────────────────────────
+    let ignore_rules = collect_ignore_rules(&ignore, &ignore_file, &config)?;
+
+    let mut effective_headers = prepare_auth(login_command, &headers, cookies, verbose);
+    // Config-file credentials come first so an explicit --header can override.
+    let mut config_headers = config
+        .auth
+        .as_ref()
+        .map(auth::headers_from_config)
+        .transpose()?
+        .unwrap_or_default();
+    if !config_headers.is_empty() {
+        config_headers.retain(|(name, _)| {
+            !effective_headers
+                .iter()
+                .any(|(existing, _)| existing.eq_ignore_ascii_case(name))
+        });
+        effective_headers.splice(0..0, config_headers);
+    }
+
+    if !effective_headers.is_empty() && engine == "mock" {
+        Display::warning("Auth credentials are ignored by the mock engine");
+    }
 
     // ── Phase 4: Engine creation ────────────────────────────────────────
     let (mut scanner, _managed_zap) = create_scanner(
@@ -353,13 +420,15 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
     let exit_code = execute_and_report(ExecutionOptions {
         engine: &engine,
         target: &target,
-        profile: &effective_profile,
+        profile: &profile,
         format: &format,
         config_path: &config_path,
         output,
         min_severity: &min_severity,
         baseline_path,
         exit_on_severity: &exit_on_severity,
+        fail_on_new,
+        ignore_rules,
         scanner,
     })
     .await?;
@@ -375,9 +444,48 @@ async fn run_scan(opts: ScanOptions) -> anyhow::Result<i32> {
     Ok(exit_code)
 }
 
-/// Check if the requested profile is available (all profiles are now available)
-fn check_profile_access(profile: &str) -> String {
-    profile.to_string()
+/// Reject unknown profile names rather than silently falling through to the
+/// "custom" defaults.
+fn validate_profile(profile: &str) -> anyhow::Result<()> {
+    match profile {
+        "ci" | "deep" | "custom" => Ok(()),
+        other => anyhow::bail!("Invalid profile: {}. Valid: ci, deep, custom", other),
+    }
+}
+
+/// Validate severity flags up front, so a typo fails before a two-hour scan
+/// rather than after it.
+fn validate_severity_flags(min_severity: &str, exit_on_severity: &str) -> anyhow::Result<()> {
+    Severity::parse(min_severity).map_err(|e| anyhow::anyhow!("Invalid --min-severity: {}", e))?;
+    if exit_on_severity != "none" {
+        Severity::parse(exit_on_severity)
+            .map_err(|e| anyhow::anyhow!("Invalid --exit-on-severity: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Gather ignore rules from the config file, an ignore file, and CLI flags.
+fn collect_ignore_rules(
+    cli_rules: &[String],
+    ignore_file: &Option<PathBuf>,
+    config: &ScanConfig,
+) -> anyhow::Result<Vec<ignore::IgnoreRule>> {
+    let mut rules = config.ignore.clone();
+
+    for (i, rule) in rules.iter().enumerate() {
+        rule.validate()
+            .map_err(|e| anyhow::anyhow!("Invalid ignore rule #{} in config file: {}", i + 1, e))?;
+    }
+
+    if let Some(path) = ignore_file {
+        rules.extend(ignore::load_ignore_file(path)?);
+    }
+
+    for spec in cli_rules {
+        rules.push(ignore::IgnoreRule::parse_cli(spec)?);
+    }
+
+    Ok(rules)
 }
 
 /// Validate all scan inputs before proceeding.
@@ -468,8 +576,14 @@ fn prepare_auth(
     };
 
     let mut effective_headers = parsed_headers;
-    if let Some(ch) = cookie_header {
-        effective_headers.push(("Cookie".to_string(), ch));
+    match cookie_header {
+        // An empty value would install a replacer rule that *strips* the
+        // header, which is worse than not setting it.
+        Some(ch) if !ch.trim().is_empty() => {
+            effective_headers.push(("Cookie".to_string(), ch));
+        }
+        Some(_) => Display::warning("Cookie file contained no usable cookies; ignoring"),
+        None => {}
     }
     effective_headers
 }
@@ -498,7 +612,9 @@ async fn create_scanner(
             let managed = zap_managed::start_managed_zap(zap_managed::ManagedZapOptions {
                 image: zap_image,
                 host_port: zap_port,
-                api_key: None,
+                // None means "generate one"; the managed container is never
+                // left with its API unauthenticated.
+                api_key: config.zap.api_key.clone(),
                 keep: keep_zap,
             })
             .await?;
@@ -523,7 +639,7 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
     let use_mock = opts.engine == "mock";
 
     if use_mock {
-        Display::warning("Using mock ZAP client (test mode)");
+        Display::mock_banner();
     } else {
         Display::status("Engine", "ZAP (Docker managed)");
     }
@@ -543,6 +659,14 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
 
     report.filter_by_severity(opts.min_severity)?;
 
+    report.apply_ignore_rules(&opts.ignore_rules);
+    if report.suppressed_count() > 0 {
+        Display::info(&format!(
+            "{} finding(s) suppressed by ignore rules (kept in report under 'suppressed')",
+            report.suppressed_count()
+        ));
+    }
+
     // Display results
     Display::vulnerability_summary(
         report.vulnerability_count(),
@@ -550,6 +674,7 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
         report.high_count(),
         report.medium_count(),
         report.low_count(),
+        report.info_count(),
     );
 
     if report.vulnerability_count() > 0 {
@@ -559,35 +684,31 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
     }
 
     // Perform comparison if baseline is provided
-    if let Some(baseline_file) = opts.baseline_path {
-        match report::ScanReport::load_from_file(&baseline_file) {
+    let mut comparison = None;
+    if let Some(ref baseline_file) = opts.baseline_path {
+        match report::ScanReport::load_from_file(baseline_file) {
             Ok(baseline_report) => {
-                let comparison = report::ReportComparison::new(&baseline_report, &report);
-                Display::comparison_report(&comparison);
+                let cmp = report::ReportComparison::new(&baseline_report, &report);
+                Display::comparison_report(&cmp);
+                comparison = Some(cmp);
             }
             Err(e) => {
+                // With --fail-on-new the baseline is the gate; scanning on
+                // without it would silently pass a build that should fail.
+                if opts.fail_on_new {
+                    anyhow::bail!(
+                        "--fail-on-new was requested but the baseline could not be read: {}",
+                        e
+                    );
+                }
                 Display::warning(&format!("Failed to load baseline report: {}", e));
             }
         }
     }
 
     if let Some(output_path) = opts.output {
-        let format_lower = opts.format.to_lowercase();
-        let format_allowed = match format_lower.as_str() {
-            "html" => true,
-            "yaml" | "yml" => true,
-            _ => true,
-        };
-
-        if format_allowed {
-            report.save(&output_path, opts.format)?;
-            Display::success(&format!("Report saved to: {}", output_path.display()));
-        } else {
-            Display::warning("Saving report as JSON (Pro required for HTML/YAML)");
-            let json_path = output_path.with_extension("json");
-            report.save(&json_path, "json")?;
-            Display::success(&format!("Report saved to: {}", json_path.display()));
-        }
+        report.save(&output_path, opts.format)?;
+        Display::success(&format!("Report saved to: {}", output_path.display()));
     } else {
         println!("\n{}", report.summary());
     }
@@ -596,37 +717,84 @@ async fn execute_and_report(opts: ExecutionOptions<'_>) -> anyhow::Result<i32> {
     println!("\n{}", "=".repeat(50));
     Display::success("Scan completed successfully!");
 
-    // Determine exit code based on exit_on_severity threshold
-    let exit_code = if opts.exit_on_severity != "none" {
-        match report::ScanReport::parse_severity(opts.exit_on_severity) {
-            Ok(threshold) => {
-                if report.alerts.iter().any(|a| {
-                    let alert_severity = report::ScanReport::parse_severity(&a.riskcode)
-                        .unwrap_or(report::SeverityLevel::Low);
-                    alert_severity >= threshold
-                }) {
-                    Display::error(&format!(
-                        "Scan failed: found vulnerabilities at or above {} severity",
-                        opts.exit_on_severity
-                    ));
-                    1
-                } else {
-                    0
-                }
-            }
-            Err(_) => {
-                Display::warning(&format!(
-                    "Invalid exit_on_severity value: {}",
-                    opts.exit_on_severity
-                ));
-                0
-            }
-        }
+    Ok(determine_exit_code(
+        &report,
+        comparison.as_ref(),
+        opts.exit_on_severity,
+        opts.fail_on_new,
+    ))
+}
+
+/// Decide the process exit code from the gating flags.
+///
+/// `--fail-on-new` narrows gating to findings absent from the baseline, which
+/// is what makes a baseline useful in CI: a build fails for what this change
+/// introduced, not for the backlog it inherited.
+fn determine_exit_code(
+    report: &report::ScanReport,
+    comparison: Option<&report::ReportComparison>,
+    exit_on_severity: &str,
+    fail_on_new: bool,
+) -> i32 {
+    // Validated in run_scan; treat anything unparseable as "no gating".
+    let threshold = if exit_on_severity == "none" {
+        None
     } else {
-        0
+        Severity::parse(exit_on_severity).ok()
     };
 
-    Ok(exit_code)
+    if fail_on_new {
+        // run_scan guarantees a comparison here: it rejects --fail-on-new
+        // without --baseline, and bails if the baseline cannot be read. Passing
+        // the build would be the wrong default for a gate, so say why.
+        let Some(cmp) = comparison else {
+            Display::error(
+                "Internal error: --fail-on-new reached gating with no baseline comparison",
+            );
+            return 1;
+        };
+
+        let failing = match threshold {
+            Some(t) => cmp.has_new_at_or_above(t),
+            // --fail-on-new alone: any new finding fails the build.
+            None => !cmp.new_vulnerabilities.is_empty(),
+        };
+
+        if failing {
+            Display::error(&format!(
+                "Scan failed: {} new finding(s) since the baseline{} (worst: {})",
+                cmp.new_vulnerabilities.len(),
+                match threshold {
+                    Some(t) => format!(" at or above {} severity", t),
+                    None => String::new(),
+                },
+                cmp.max_new_severity()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "none".to_string())
+            ));
+            return 1;
+        }
+
+        if !cmp.new_vulnerabilities.is_empty() {
+            Display::info(&format!(
+                "{} new finding(s) below the {} gate",
+                cmp.new_vulnerabilities.len(),
+                threshold.map(|t| t.to_string()).unwrap_or_default()
+            ));
+        }
+        return 0;
+    }
+
+    match threshold {
+        Some(t) if report.has_at_or_above(t) => {
+            Display::error(&format!(
+                "Scan failed: found vulnerabilities at or above {} severity",
+                exit_on_severity
+            ));
+            1
+        }
+        _ => 0,
+    }
 }
 
 fn run_init(config_path: String) -> anyhow::Result<()> {

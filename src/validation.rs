@@ -64,13 +64,7 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     // Check if parent directory exists (default to current dir)
     let parent = path
         .parent()
-        .and_then(|p| {
-            if p.as_os_str().is_empty() {
-                None
-            } else {
-                Some(p)
-            }
-        })
+        .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
 
     if !parent.exists() {

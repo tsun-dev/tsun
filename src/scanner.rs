@@ -10,6 +10,9 @@ pub struct Scanner {
     config: ScanConfig,
     verbose: bool,
     engine: Arc<dyn ScanEngine>,
+    /// Name of the engine backing this scanner, recorded in the report so mock
+    /// output is never mistaken for a real scan.
+    engine_name: String,
     max_urls: Option<u32>,
     attack_strength: Option<String>,
     alert_threshold: Option<String>,
@@ -34,6 +37,7 @@ impl Scanner {
             Arc::from(crate::zap::new_real_client_with_headers(
                 &config.zap.host,
                 &headers,
+                config.zap.api_key.clone(),
             )?)
         };
 
@@ -42,6 +46,7 @@ impl Scanner {
             config,
             verbose: false,
             engine,
+            engine_name: if use_mock { "mock" } else { "zap" }.to_string(),
             max_urls: None,
             attack_strength: None,
             alert_threshold: None,
@@ -58,6 +63,7 @@ impl Scanner {
         let engine: Arc<dyn ScanEngine> = Arc::from(crate::zap::new_real_client_with_headers(
             &managed.zap_url,
             &headers,
+            managed.api_key.clone(),
         )?);
 
         Ok(Self {
@@ -65,6 +71,7 @@ impl Scanner {
             config,
             verbose: false,
             engine,
+            engine_name: "zap".to_string(),
             max_urls: None,
             attack_strength: None,
             alert_threshold: None,
@@ -123,7 +130,8 @@ impl Scanner {
         // Get scan results
         let alerts = self.engine.get_alerts(&self.target).await?;
 
-        let report = ScanReport::from_alerts(self.target.clone(), alerts);
+        let report =
+            ScanReport::from_alerts(self.target.clone(), alerts).with_engine(&self.engine_name);
 
         Ok(report)
     }

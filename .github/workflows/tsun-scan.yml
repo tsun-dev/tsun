@@ -40,56 +40,42 @@ jobs:
       - name: Verify installation
         run: tsun doctor
       
-      # Optional: Set Pro license from repository secret
-      # - name: Activate Pro license
-      #   if: ${{ secrets.TSUN_LICENSE != '' }}
-      #   run: echo "${{ secrets.TSUN_LICENSE }}" | tsun license set -
-      
+      - name: Restore baseline from main
+        uses: actions/download-artifact@v4
+        with:
+          name: security-baseline
+        continue-on-error: true
+
       - name: Run security scan
         run: |
-          # Free tier: CI profile, fast scans, JSON output
+          # Gate on findings introduced by this change, not the whole backlog.
+          # Drop --baseline/--fail-on-new to gate on every finding instead.
           tsun scan \
             --target ${{ vars.APP_URL || 'https://staging.example.com' }} \
             --profile ci \
             --format sarif \
             --output results.sarif \
+            --baseline baseline.json \
+            --fail-on-new \
             --exit-on-severity high
-        
-        # Pro: Add baseline comparison to reduce noise
-        # tsun scan \
-        #   --target ${{ vars.APP_URL }} \
-        #   --profile deep \
-        #   --baseline baseline.json \
-        #   --format html \
-        #   --output report.html \
-        #   --exit-on-severity medium
-      
+
       - name: Upload SARIF to GitHub Security
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
-      
-      # Pro: Upload HTML report as artifact
-      # - name: Upload HTML report
-      #   if: always()
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: security-report
-      #     path: report.html
-      
-      # Pro: Save baseline for next run
-      # - name: Update baseline
-      #   if: github.ref == 'refs/heads/main'
-      #   run: |
-      #     tsun scan --target ${{ vars.APP_URL }} --format json --output baseline.json
-      #     git add baseline.json
-      #     git commit -m "Update security baseline [skip ci]"
-      #     git push
 
-# What Tsun offers:
-# ✓ Baseline comparison - See only NEW vulnerabilities in PRs
-# ✓ Deep profile - Thorough scans for releases (60-120 min)
-# ✓ HTML reports - Beautiful, shareable documentation
-# ✓ YAML output - Easy integration with custom tools
-# ✓ Noise reduction - Focus on what matters
+      - name: Publish new baseline
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-baseline
+          path: results.sarif
+
+# Notes:
+# - --engine defaults to zap (Docker-managed). Use --engine mock only to test
+#   this workflow's wiring; it fabricates findings and never contacts the target.
+# - For authenticated scans, pass --header / --cookies; they are injected into
+#   the requests ZAP sends to the target.
+# - Retire accepted findings with ignore rules rather than raising the gate:
+#   --ignore plugin:10038, or an `ignore:` block in tsun.yaml.

@@ -53,7 +53,6 @@ pub fn cleanup_all_containers() {
 
 pub struct ZapManaged {
     pub zap_url: String,
-    #[allow(dead_code)]
     pub api_key: Option<String>,
     container_id: String,
     keep: bool,
@@ -121,6 +120,25 @@ pub struct ManagedZapOptions {
     pub host_port: u16,
     pub api_key: Option<String>,
     pub keep: bool,
+}
+
+/// Generate a per-run ZAP API key.
+///
+/// Not a secret that needs to survive the process — it only has to be
+/// unguessable for the lifetime of this container.
+fn generate_api_key() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    // Stack address varies per run under ASLR, so it adds entropy the clock
+    // and pid do not.
+    let addr = &nanos as *const u128 as usize;
+
+    format!("{:x}", md5::compute(format!("{}-{}-{}", nanos, pid, addr)))
 }
 
 fn try_reserve_port(port: u16) -> bool {
@@ -194,17 +212,17 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
         info!("Using ZAP port {}", host_port);
     }
 
-    // ZAP config: if no api_key specified, disable key requirement for dev ergonomics
-    let key_cfg = if let Some(k) = &opts.api_key {
-        format!("api.key={}", k)
-    } else {
-        "api.disablekey=true".to_string()
-    };
+    // ZAP's API can drive requests to arbitrary hosts, so it is never left
+    // unauthenticated: when no key is supplied we generate one for this run.
+    let api_key = opts.api_key.clone().unwrap_or_else(generate_api_key);
+    let key_cfg = format!("api.key={}", api_key);
 
     let port_str = host_port.to_string();
 
-    // Using host network mode so ZAP can access external URLs directly
-    // without proxy confusion between container and host localhost addresses
+    // Host networking lets ZAP reach the target directly, without proxy
+    // confusion between container and host localhost addresses. It also means
+    // ZAP binds on the host itself — so bind the API to loopback only, or a
+    // shared CI runner would expose it to everything on the network.
     let args = vec![
         "run",
         "-d",
@@ -214,13 +232,18 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
         "zap.sh",
         "-daemon",
         "-host",
-        "0.0.0.0",
+        "127.0.0.1",
         "-port",
         &port_str, // Use the host port directly
         "-config",
         &key_cfg,
         "-config",
         "connection.timeoutInSecs=120",
+        // Only this host may call the API, even if something else forwards to it.
+        "-config",
+        "api.addrs.addr.name=127.0.0.1",
+        "-config",
+        "api.addrs.addr.regex=false",
     ];
 
     let out = Command::new("docker")
@@ -250,7 +273,7 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
 
     // Wait for ZAP to be ready (simple health check with retries)
     let zap_url = format!("http://127.0.0.1:{}", host_port);
-    if let Err(e) = wait_for_zap_ready(&zap_url, 90).await {
+    if let Err(e) = wait_for_zap_ready(&zap_url, &api_key, 90).await {
         warn!("ZAP failed to become ready, cleaning up container");
         let _ = Command::new("docker")
             .args(["rm", "-f", &container_id])
@@ -262,29 +285,56 @@ pub async fn start_managed_zap(opts: ManagedZapOptions) -> anyhow::Result<ZapMan
 
     Ok(ZapManaged {
         zap_url,
-        api_key: opts.api_key,
+        api_key: Some(api_key),
         container_id,
         keep: opts.keep,
     })
 }
 
-/// Poll ZAP health endpoint until it's ready or timeout
-async fn wait_for_zap_ready(base_url: &str, timeout_secs: u64) -> anyhow::Result<()> {
+/// Poll ZAP's version endpoint until it answers or we run out of time.
+///
+/// A socket that merely accepts is not readiness — we wait for ZAP to return
+/// its version, which also confirms our API key is accepted.
+async fn wait_for_zap_ready(
+    base_url: &str,
+    api_key: &str,
+    timeout_secs: u64,
+) -> anyhow::Result<()> {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(timeout_secs);
+    let client = reqwest::Client::new();
+    let health_url = format!("{}/JSON/core/view/version/", base_url);
+    let mut last_error = String::new();
 
     loop {
         if start.elapsed() > timeout {
             return Err(anyhow!(
-                "ZAP container failed to become ready within {} seconds",
-                timeout_secs
+                "ZAP container failed to become ready within {} seconds{}",
+                timeout_secs,
+                if last_error.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (last response: {})", last_error)
+                }
             ));
         }
 
-        let health_url = format!("{}/JSON/core/action/version/", base_url);
-        if reqwest::Client::new().get(&health_url).send().await.is_ok() {
-            info!("ZAP container is ready");
-            return Ok(());
+        match client
+            .get(&health_url)
+            .query(&[("apikey", api_key)])
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                if status.is_success() && body.contains("\"version\"") {
+                    info!("ZAP container is ready");
+                    return Ok(());
+                }
+                last_error = format!("HTTP {}", status);
+            }
+            Err(e) => last_error = e.to_string(),
         }
 
         sleep(Duration::from_millis(500)).await;

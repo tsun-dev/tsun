@@ -56,6 +56,12 @@ tsun scan --target https://testphp.vulnweb.com
 **Requirements:**
 - Docker running
 
+Check your setup first with `tsun doctor`.
+
+To exercise the CLI without Docker or a target, `--engine mock` fabricates
+findings. It labels every report as fake — never use it as a stand-in for a
+scan.
+
 ---
 
 ## CI Example (GitHub Actions)
@@ -68,20 +74,45 @@ tsun scan --target https://testphp.vulnweb.com
       --exit-on-severity high
 ```
 
+Scanning an existing application surfaces its whole backlog, which fails every
+build. Gate on what the change introduced instead:
+
+```yaml
+- name: Run security scan
+  run: |
+    tsun scan \
+      --target https://staging.example.com \
+      --baseline baseline.json \
+      --fail-on-new \
+      --exit-on-severity high
+```
+
 ---
 
 ## Features
 
-Tsun is a comprehensive security scanning tool with all features available:
-
-- **Authenticated scans** - Support for headers, cookies, and login commands
-- **Multiple scan profiles** - CI (10-15 min), Deep (60-120 min), and Custom profiles
-- **Multiple output formats** - JSON, SARIF, HTML, and YAML reports
-- **Baseline comparisons** - See only new/fixed vulnerabilities
-- **GitHub SARIF upload** - Automated Code Scanning integration
-- **CI noise reduction** - Graceful fallbacks and smart exit-code gating
+- **Authenticated scans** — headers, cookies, login commands, or credentials
+  from config. Injected into ZAP's outbound requests, so they reach the target.
+- **Scan profiles** — CI (10-15 min), Deep (60-120 min), and Custom
+- **Output formats** — JSON, SARIF, HTML, YAML
+- **Baseline comparisons** — findings matched by fingerprint, so volatile URL
+  ids and rebuilt asset hashes don't look like regressions
+- **`--fail-on-new`** — fail the build only on what this change introduced
+- **Ignore rules** — retire accepted findings from config, a file, or the CLI;
+  suppressed findings stay in the report for review
+- **Five severity levels** — including Critical (which ZAP has no concept of)
+  and Info as a level of its own
+- **GitHub SARIF upload** — with stable fingerprints and CWE tags, so alerts
+  track across runs
+- **Hardened by default** — managed ZAP binds to loopback with a per-run API key
 
 ---
+
+## Security note
+
+Tsun's managed ZAP container binds its API to loopback and requires a per-run
+generated API key. ZAP's API can drive requests to arbitrary hosts, so it is
+never left open — this matters most on shared CI runners.
 
 ## Documentation
 

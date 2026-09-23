@@ -13,6 +13,9 @@ pub struct ScanConfig {
     pub auth: Option<AuthConfig>,
     /// Timeout in seconds
     pub timeout: Option<u64>,
+    /// Findings to suppress. See `tsun.yaml` template for the format.
+    #[serde(default)]
+    pub ignore: Vec<crate::ignore::IgnoreRule>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,12 +52,35 @@ zap:
 policies:
   - default
 
-# Optional authentication configuration
+# Optional authentication configuration.
+# These credentials are injected into the requests ZAP sends to the target.
+# method: basic | bearer | custom
 # auth:
 #   method: basic
 #   credentials:
 #     username: user
 #     password: pass
+#
+# auth:
+#   method: bearer
+#   credentials:
+#     token: eyJhbGci...
+#
+# auth:
+#   method: custom
+#   credentials:
+#     X-Api-Key: abc123
+
+# Findings to suppress. A rule matches when every field it lists matches,
+# so plugin + url is narrower than either alone. `alert` and `url` accept
+# `*` wildcards. Suppressed findings still appear in the report, under
+# `suppressed`, and are excluded from counts and exit-code gating.
+# ignore:
+#   - plugin: "10038"
+#     reason: CSP is set at the CDN
+#   - alert: "Cookie*"
+#     url: "*/legacy/*"
+#     reason: legacy app, scheduled for removal
 
 # Scan timeout in seconds (default: 1800 = 30 minutes)
 timeout: 1800
@@ -73,6 +99,7 @@ impl Default for ScanConfig {
             policies: vec!["default".to_string()],
             auth: None,
             timeout: Some(1800), // 30 minutes default for real ZAP scans
+            ignore: Vec::new(),
         }
     }
 }

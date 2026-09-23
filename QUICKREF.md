@@ -24,41 +24,67 @@ curl -L https://github.com/tsun-dev/tsun/releases/latest/download/tsun-macos-aar
 ### Scans
 
 ```bash
-# Quick test (no Docker needed)
-tsun scan --target http://testphp.vulnweb.com --engine mock
-
-# CI scan (15min, Docker required)
-tsun scan --target https://staging.example.com --engine zap --profile ci
+# CI scan (15 min) — --engine zap is the default, Docker required
+tsun scan --target https://staging.example.com --profile ci
 
 # Deep scan (2hr)
-tsun scan --target https://staging.example.com --engine zap --profile deep
+tsun scan --target https://staging.example.com --profile deep
+
+# Quick CLI test — FABRICATED findings, no Docker, no target contacted
+tsun scan --target http://testphp.vulnweb.com --engine mock
 
 # Custom parameters
-tsun scan --target URL --engine zap --timeout 1200 --max-urls 500 --attack-strength medium
+tsun scan --target URL --timeout 1200 --max-urls 500 --attack-strength medium
 
-# With auth headers
-tsun scan --target URL --engine zap --header "Authorization: Bearer TOKEN"
+# With auth headers (installed as ZAP replacer rules)
+tsun scan --target URL --header "Authorization: Bearer TOKEN"
 
 # With cookies
-tsun scan --target URL --engine zap --cookies cookies.txt
+tsun scan --target URL --cookies cookies.txt
 
 # SARIF for GitHub
-tsun scan --target URL --engine zap --format sarif --output report.sarif
+tsun scan --target URL --format sarif --output report.sarif
 
 # Exit on high/critical findings
-tsun scan --target URL --engine zap --exit-on-severity high
+tsun scan --target URL --exit-on-severity high
 
-# Baseline comparison
-tsun scan --target URL --engine zap --baseline baseline.json
+# Fail only on findings new since the baseline
+tsun scan --target URL --baseline baseline.json --fail-on-new
+
+# Suppress accepted findings
+tsun scan --target URL --ignore plugin:10038 --ignore "url:*/static/*"
+
+# Diagnose the local setup
+tsun doctor
 ```
+
+### Severity levels
+
+| Level | From ZAP |
+|-------|----------|
+| `critical` | High risk + High/Confirmed confidence |
+| `high` | High risk + Medium/Low confidence |
+| `medium` | Medium risk |
+| `low` | Low risk |
+| `info` | Informational (excluded by `--min-severity low`) |
+
+Names only — numeric codes are rejected as ambiguous.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Scan completed, nothing met the gate |
+| 1 | Findings met the `--exit-on-severity` / `--fail-on-new` gate, or the scan failed |
+| 130 | Interrupted (Ctrl+C); ZAP containers cleaned up |
 
 ### Output Formats
 
 ```bash
 --format json    # Default, machine-readable
---format html    # Beautiful styled report
+--format html    # Styled report
 --format yaml    # Human-readable structured
---format sarif   # GitHub Code Scanning
+--format sarif   # GitHub Code Scanning (fingerprints + CWE tags)
 ```
 
 ### Profiles
@@ -78,10 +104,11 @@ tsun scan --target URL --engine zap --baseline baseline.json
   run: |
     ./tsun scan \
       --target https://staging.yourapp.com \
-      --engine zap \
       --profile ci \
       --format sarif \
       --output report.sarif \
+      --baseline baseline.json \
+      --fail-on-new \
       --exit-on-severity high
 
 - name: Upload to GitHub Security
@@ -102,6 +129,10 @@ cargo test
 # Run locally
 cargo run -- scan --target URL --engine mock
 
+# Integration tests (CLI end-to-end, and a fake ZAP over HTTP)
+cargo test --test cli
+cargo test --test zap_client
+
 # Format
 cargo fmt
 
@@ -109,7 +140,7 @@ cargo fmt
 cargo clippy
 
 # Release
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.6.0 && git push origin v0.6.0
 ```
 
 ## Troubleshooting
@@ -131,22 +162,30 @@ docker rm -f $(docker ps -aq --filter ancestor=zaproxy/zap-stable)
 
 **Verbose logging:**
 ```bash
-tsun scan --target URL --engine zap --verbose
+tsun scan --target URL --verbose
+```
+
+**External ZAP needs an API key:**
+```bash
+tsun scan --target URL --zap-api-key "$ZAP_KEY"   # or TSUN_ZAP_API_KEY
 ```
 
 ## Architecture Overview
 
 ```
-main.rs          → CLI parsing + orchestration
+main.rs          → CLI parsing + orchestration + exit-code gating
 scanner.rs       → Scan runner (wires everything together)
-zap.rs           → Real ZAP API client
-zap_mock.rs      → Mock client for testing
-zap_managed.rs   → Docker lifecycle management
-config.rs        → YAML config + defaults
+zap.rs           → Real ZAP API client (+ replacer auth, API key)
+zap_mock.rs      → Mock engine — fabricated findings for testing
+zap_managed.rs   → Docker lifecycle, loopback bind, per-run API key
+config.rs        → YAML config + profile resolution
+severity.rs      → Severity classification + CVSS estimation
+fingerprint.rs   → URL normalization + stable finding identity
+ignore.rs        → Suppression rules (config / file / CLI)
 report.rs        → Report models + baseline comparison
 html.rs          → HTML report generation
-sarif.rs         → SARIF 2.1.0 export
-auth.rs          → Header/cookie parsing
+sarif.rs         → SARIF 2.1.0 export (fingerprints, CWE tags)
+auth.rs          → Header/cookie parsing + config-file credentials
 display.rs       → Terminal UI
 validation.rs    → Input validation
 ```

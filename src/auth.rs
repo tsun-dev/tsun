@@ -18,6 +18,62 @@ pub fn parse_headers(inputs: &[String]) -> Vec<(String, String)> {
     out
 }
 
+/// Turn a config-file `auth:` block into request headers.
+///
+/// Supported methods: `basic` (username/password), `bearer` (token), and
+/// `custom` (a map of header names to values).
+pub fn headers_from_config(auth: &crate::config::AuthConfig) -> Result<Vec<(String, String)>> {
+    use base64::Engine as _;
+
+    let creds = &auth.credentials;
+    let field = |name: &str| -> Option<String> {
+        creds.get(name).and_then(|v| v.as_str()).map(str::to_string)
+    };
+
+    match auth.method.to_lowercase().as_str() {
+        "basic" => {
+            let username = field("username").ok_or_else(|| {
+                anyhow::anyhow!("auth.method 'basic' requires credentials.username")
+            })?;
+            let password = field("password").unwrap_or_default();
+            let encoded = base64::engine::general_purpose::STANDARD
+                .encode(format!("{}:{}", username, password));
+            Ok(vec![(
+                "Authorization".to_string(),
+                format!("Basic {}", encoded),
+            )])
+        }
+        "bearer" => {
+            let token = field("token")
+                .or_else(|| field("access_token"))
+                .ok_or_else(|| {
+                    anyhow::anyhow!("auth.method 'bearer' requires credentials.token")
+                })?;
+            Ok(vec![(
+                "Authorization".to_string(),
+                format!("Bearer {}", token),
+            )])
+        }
+        "custom" => {
+            let map = creds.as_object().ok_or_else(|| {
+                anyhow::anyhow!("auth.method 'custom' requires credentials to be a map of headers")
+            })?;
+            let mut headers = Vec::new();
+            for (name, value) in map {
+                let value = value.as_str().ok_or_else(|| {
+                    anyhow::anyhow!("auth credential '{}' must be a string", name)
+                })?;
+                headers.push((name.clone(), value.to_string()));
+            }
+            Ok(headers)
+        }
+        other => anyhow::bail!(
+            "Unsupported auth.method '{}'. Valid: basic, bearer, custom",
+            other
+        ),
+    }
+}
+
 /// Load cookies from a Netscape-format cookies.txt or JSON and return a Cookie header string
 pub fn load_cookie_header(path: &Path) -> Result<String> {
     let content = std::fs::read_to_string(path)?;
@@ -88,6 +144,52 @@ pub fn load_cookie_header(path: &Path) -> Result<String> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    use crate::config::AuthConfig;
+
+    fn auth(method: &str, credentials: serde_json::Value) -> AuthConfig {
+        AuthConfig {
+            method: method.to_string(),
+            credentials,
+        }
+    }
+
+    #[test]
+    fn config_basic_auth_becomes_authorization_header() {
+        let headers = headers_from_config(&auth(
+            "basic",
+            serde_json::json!({"username": "alice", "password": "s3cret"}),
+        ))
+        .unwrap();
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers[0].0, "Authorization");
+        // base64("alice:s3cret")
+        assert_eq!(headers[0].1, "Basic YWxpY2U6czNjcmV0");
+    }
+
+    #[test]
+    fn config_bearer_auth_becomes_authorization_header() {
+        let headers =
+            headers_from_config(&auth("bearer", serde_json::json!({"token": "abc123"}))).unwrap();
+        assert_eq!(
+            headers[0],
+            ("Authorization".to_string(), "Bearer abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn config_custom_auth_passes_headers_through() {
+        let headers =
+            headers_from_config(&auth("custom", serde_json::json!({"X-Api-Key": "k1"}))).unwrap();
+        assert_eq!(headers[0], ("X-Api-Key".to_string(), "k1".to_string()));
+    }
+
+    #[test]
+    fn config_auth_rejects_unknown_method_and_missing_fields() {
+        assert!(headers_from_config(&auth("saml", serde_json::json!({}))).is_err());
+        assert!(headers_from_config(&auth("basic", serde_json::json!({}))).is_err());
+        assert!(headers_from_config(&auth("bearer", serde_json::json!({}))).is_err());
+    }
 
     #[test]
     fn test_parse_headers() {

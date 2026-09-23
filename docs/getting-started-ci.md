@@ -82,6 +82,24 @@ security-scan:
 tsun scan --target URL --profile ci --timeout 1200 --max-urls 500 --attack-strength medium
 ```
 
+## Gating on new findings only
+
+A full scan of an existing application reports its whole backlog, which fails
+every build. Gate on the change instead:
+
+```bash
+tsun scan \
+  --target https://staging.example.com \
+  --profile ci \
+  --baseline baseline.json \
+  --fail-on-new \
+  --exit-on-severity medium
+```
+
+See [baseline comparison](baseline-comparison.md) for the full pattern, and
+[ignore rules](configuration.md#ignore-rules) for retiring findings you have
+accepted permanently.
+
 ## Common Use Cases
 
 ```bash
@@ -96,4 +114,14 @@ tsun scan --target https://staging.example.com --engine zap --profile ci --exit-
 
 # Custom scan parameters
 tsun scan --target https://staging.example.com --engine zap --timeout 600 --max-urls 100 --attack-strength medium
+
+# Authenticated scan
+tsun scan --target https://staging.example.com --engine zap --header "Authorization: Bearer $TOKEN"
+
+# Suppress an accepted finding
+tsun scan --target https://staging.example.com --engine zap --ignore plugin:10038
 ```
+
+**Note:** `--engine zap` is the default and can be omitted; it is spelled out in
+these examples for clarity. Use `--engine mock` only for testing the CLI
+itself — it fabricates findings and never contacts the target.

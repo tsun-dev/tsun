@@ -1,10 +1,13 @@
-use crate::report::Alert;
+use crate::report::{Alert, AlertInstance};
 use crate::zap::ScanEngine;
 use anyhow::Result;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Mock ZAP client for testing without a real ZAP server
+/// Mock ZAP client for testing without a real ZAP server.
+///
+/// Findings produced here are fabricated. Reports carry `engine: "mock"` so
+/// nothing downstream mistakes them for a real scan.
 #[derive(Debug)]
 pub struct MockZapClient;
 
@@ -49,142 +52,163 @@ impl ScanEngine for MockZapClient {
     }
 }
 
-/// Generate realistic mock vulnerability alerts for testing
+/// One fabricated finding, shaped the way ZAP's API returns them.
+struct MockFinding {
+    plugin_id: &'static str,
+    name: &'static str,
+    risk: &'static str,
+    confidence: &'static str,
+    path: &'static str,
+    method: &'static str,
+    param: Option<&'static str>,
+    attack: Option<&'static str>,
+    evidence: Option<&'static str>,
+    description: &'static str,
+}
+
+/// Generate realistic mock vulnerability alerts for testing.
+///
+/// The set deliberately spans every severity the classifier can produce —
+/// including a Critical (High risk + Confirmed confidence) and an
+/// Informational — so filtering and gating logic is exercised end to end.
 fn generate_mock_alerts(target: &str) -> Vec<Alert> {
-    vec![
-        Alert {
-            pluginid: "10010".to_string(),
-            alert_ref: "10010".to_string(),
-            alert: "Cookie without Secure Flag".to_string(),
-            name: "Cookie without Secure Flag".to_string(),
-            riskcode: "2".to_string(), // High
-            confidence: "2".to_string(), // High
-            riskdesc: "High".to_string(),
-            url: format!("{}/login", target),
-            description: Some(
-                "A cookie has been set without the Secure flag. The Secure flag is an option that can be set by the application server when sending a new cookie to the user within an HTTP Secure (HTTPS) response.".to_string()
-            ),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: format!("{}/login", target),
-                    method: "POST".to_string(),
-                    param: Some("session_id".to_string()),
-                    attack: None,
-                    evidence: Some("Set-Cookie: session_id=abc123".to_string()),
-                },
-            ],
-            cvss_score: 7.5,
-            vulnerability_type: "Security Misconfiguration".to_string(),
+    let findings = [
+        MockFinding {
+            plugin_id: "40018",
+            name: "SQL Injection",
+            risk: "High",
+            confidence: "Confirmed",
+            path: "/search",
+            method: "POST",
+            param: Some("query"),
+            attack: Some("' OR '1'='1"),
+            evidence: Some("You have an error in your SQL syntax"),
+            description: "SQL injection may be possible. The application appears to pass unsanitized input into a database query.",
         },
-        Alert {
-            pluginid: "10015".to_string(),
-            alert_ref: "10015".to_string(),
-            alert: "Re-CAPTCHA Detected".to_string(),
-            name: "Re-CAPTCHA Detected".to_string(),
-            riskcode: "0".to_string(), // Informational
-            confidence: "1".to_string(), // Low
-            riskdesc: "Informational".to_string(),
-            url: format!("{}/signup", target),
-            description: Some("A Re-CAPTCHA was detected".to_string()),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: format!("{}/signup", target),
-                    method: "GET".to_string(),
-                    param: None,
-                    attack: None,
-                    evidence: Some("script src=\"https://www.google.com/recaptcha/api.js\"".to_string()),
-                },
-            ],
-            cvss_score: 0.0,
-            vulnerability_type: "Other".to_string(),
+        MockFinding {
+            plugin_id: "40012",
+            name: "Cross Site Scripting (Reflected)",
+            risk: "High",
+            confidence: "Medium",
+            path: "/profile",
+            method: "GET",
+            param: Some("name"),
+            attack: Some("<script>alert(1)</script>"),
+            evidence: Some("<script>alert(1)</script>"),
+            description: "Cross-site scripting was found. User input is reflected into the response without encoding.",
         },
-        Alert {
-            pluginid: "90018".to_string(),
-            alert_ref: "90018".to_string(),
-            alert: "Header Injection".to_string(),
-            name: "Header Injection".to_string(),
-            riskcode: "2".to_string(), // High
-            confidence: "1".to_string(), // Low
-            riskdesc: "High".to_string(),
-            url: format!("{}/search", target),
-            description: Some("The application may be vulnerable to Header Injection attacks.".to_string()),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: format!("{}/search?q=test", target),
-                    method: "GET".to_string(),
-                    param: Some("q".to_string()),
-                    attack: Some("test%0d%0aSet-Cookie:%20admin=true".to_string()),
-                    evidence: None,
-                },
-            ],
-            cvss_score: 8.1,
-            vulnerability_type: "Cross-Site Scripting (XSS)".to_string(),
+        MockFinding {
+            plugin_id: "10010",
+            name: "Cookie Without Secure Flag",
+            risk: "Medium",
+            confidence: "High",
+            path: "/login",
+            method: "POST",
+            param: Some("session"),
+            attack: None,
+            evidence: Some("Set-Cookie: session=abc123"),
+            description: "A cookie has been set without the Secure flag, so it can be transmitted over an unencrypted connection.",
         },
-        Alert {
-            pluginid: "10021".to_string(),
-            alert_ref: "10021".to_string(),
-            alert: "X-Frame-Options Header Missing".to_string(),
-            name: "X-Frame-Options Header Missing".to_string(),
-            riskcode: "2".to_string(), // High
-            confidence: "2".to_string(), // High
-            riskdesc: "High".to_string(),
-            url: target.to_string(),
-            description: Some("The response does not include an X-Frame-Options header.".to_string()),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: target.to_string(),
-                    method: "GET".to_string(),
-                    param: None,
-                    attack: None,
-                    evidence: None,
-                },
-            ],
-            cvss_score: 7.4,
-            vulnerability_type: "Security Misconfiguration".to_string(),
+        MockFinding {
+            plugin_id: "10038",
+            name: "Content Security Policy (CSP) Header Not Set",
+            risk: "Medium",
+            confidence: "Medium",
+            path: "/",
+            method: "GET",
+            param: None,
+            attack: None,
+            evidence: None,
+            description: "No Content-Security-Policy header was set, so the browser has no policy limiting where content may load from.",
         },
-        Alert {
-            pluginid: "10035".to_string(),
-            alert_ref: "10035".to_string(),
-            alert: "Strict-Transport-Security Header Missing".to_string(),
-            name: "Strict-Transport-Security Header Missing".to_string(),
-            riskcode: "1".to_string(), // Medium
-            confidence: "2".to_string(), // High
-            riskdesc: "Medium".to_string(),
-            url: target.to_string(),
-            description: Some("HTTP Strict-Transport-Security (HSTS) header is missing.".to_string()),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: target.to_string(),
-                    method: "GET".to_string(),
-                    param: None,
-                    attack: None,
-                    evidence: None,
-                },
-            ],
-            cvss_score: 5.9,
-            vulnerability_type: "Sensitive Data Exposure".to_string(),
+        MockFinding {
+            plugin_id: "10021",
+            name: "X-Content-Type-Options Header Missing",
+            risk: "Low",
+            confidence: "Medium",
+            path: "/static/app.js",
+            method: "GET",
+            param: None,
+            attack: None,
+            evidence: None,
+            description: "The X-Content-Type-Options header was not set to 'nosniff', allowing older browsers to MIME-sniff the response.",
         },
-        Alert {
-            pluginid: "10037".to_string(),
-            alert_ref: "10037".to_string(),
-            alert: "Server Leaks Version Information".to_string(),
-            name: "Server Leaks Version Information".to_string(),
-            riskcode: "1".to_string(), // Medium
-            confidence: "1".to_string(), // Low
-            riskdesc: "Medium".to_string(),
-            url: target.to_string(),
-            description: Some("The server software version is exposed via HTTP headers.".to_string()),
-            instances: vec![
-                crate::report::AlertInstance {
-                    uri: target.to_string(),
-                    method: "GET".to_string(),
-                    param: None,
-                    attack: None,
-                    evidence: Some("Server: Apache/2.4.41 (Ubuntu)".to_string()),
-                },
-            ],
-            cvss_score: 5.3,
-            vulnerability_type: "Sensitive Data Exposure".to_string(),
+        MockFinding {
+            plugin_id: "10015",
+            name: "Server Leaks Version Information",
+            risk: "Informational",
+            confidence: "High",
+            path: "/",
+            method: "GET",
+            param: None,
+            attack: None,
+            evidence: Some("Server: nginx/1.18.0"),
+            description: "The web server responds with a header disclosing its version, which helps an attacker target known issues.",
         },
-    ]
+    ];
+
+    findings
+        .into_iter()
+        .map(|f| {
+            let url = format!("{}{}", target.trim_end_matches('/'), f.path);
+            Alert::from_zap(
+                f.plugin_id.to_string(),
+                f.plugin_id.to_string(),
+                f.name.to_string(),
+                f.risk,
+                f.confidence,
+                url.clone(),
+                Some(f.description.to_string()),
+                vec![AlertInstance {
+                    uri: url,
+                    method: f.method.to_string(),
+                    param: f.param.map(str::to_string),
+                    attack: f.attack.map(str::to_string),
+                    evidence: f.evidence.map(str::to_string),
+                }],
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::severity::Severity;
+
+    #[test]
+    fn mock_alerts_span_every_severity() {
+        let alerts = generate_mock_alerts("https://example.com");
+        let severities: Vec<Severity> = alerts.iter().map(|a| a.severity()).collect();
+
+        for expected in [
+            Severity::Critical,
+            Severity::High,
+            Severity::Medium,
+            Severity::Low,
+            Severity::Info,
+        ] {
+            assert!(
+                severities.contains(&expected),
+                "mock data should include a {:?} finding so gating logic is exercised",
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn mock_alerts_have_estimated_cvss() {
+        for alert in generate_mock_alerts("https://example.com") {
+            assert!(alert.cvss_estimated);
+            if alert.severity() > Severity::Info {
+                assert!(alert.cvss_score > 0.0, "{} scored 0", alert.alert);
+            }
+        }
+    }
+
+    #[test]
+    fn mock_urls_are_built_without_double_slashes() {
+        let alerts = generate_mock_alerts("https://example.com/");
+        assert!(alerts.iter().all(|a| !a.url.contains("com//")));
+    }
 }

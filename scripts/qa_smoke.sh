@@ -58,6 +58,7 @@ log_pass "Build and dependencies ready"
 # Cleanup function
 cleanup() {
   rm -f test.json test.sarif test.html test.yaml cookies.json cookies.txt tsun.yaml zap-test.json zap-sanity.json
+  rm -f ignore-test.json fon-baseline.json
   rm -f /tmp/html-gating.log /tmp/yaml-gating.log /tmp/baseline-gating.log /tmp/deep-gating.log /tmp/custom-gating.log
 }
 trap cleanup EXIT
@@ -69,7 +70,7 @@ echo "════════════════════════�
 echo ""
 
 # ============================================================================
-# FREE TIER TESTS (Always Available)
+# CORE TESTS
 # ============================================================================
 
 # Test 1: Doctor check
@@ -80,7 +81,7 @@ else
   log_skip "Doctor check (may fail in CI without Docker)"
 fi
 
-# Test 2: Free JSON output (mock)
+# Test 2: JSON output (mock)
 log_info "Test 2: Mock JSON output..."
 tsun scan --target https://testphp.vulnweb.com --format json --output test.json --engine mock >/dev/null 2>&1
 if [ -f test.json ]; then
@@ -89,7 +90,7 @@ else
   log_fail "test.json not created"
 fi
 
-# Test 3: Free SARIF output (mock)
+# Test 3: SARIF output (mock)
 log_info "Test 3: Mock SARIF output..."
 tsun scan --target https://testphp.vulnweb.com --format sarif --output test.sarif --engine mock >/dev/null 2>&1
 if [ -f test.sarif ]; then
@@ -128,7 +129,7 @@ else
 fi
 
 # ============================================================================
-# FEATURE VERIFICATION (All features available)
+# FEATURE VERIFICATION
 # ============================================================================
 
 # Test 6: HTML output
@@ -193,12 +194,27 @@ else
   fi
 fi
 
-# Test 12: Exit-code gating (critical only)
-log_info "Test 12: Exit-code gating (critical - none expected)..."
+# Test 12: Exit-code gating (critical)
+# The mock fixture includes a Critical finding (High risk at Confirmed
+# confidence), so this gate must fire.
+log_info "Test 12: Exit-code gating (critical)..."
 if tsun scan --target https://testphp.vulnweb.com --exit-on-severity critical --engine mock >/dev/null 2>&1; then
-  log_pass "Exit-code gating (critical) works (exit 0)"
+  log_fail "Should exit 1 — mock fixture contains a critical finding"
 else
-  log_fail "Should exit 0 for critical (no critical findings in mock)"
+  EXIT_CODE=$?
+  if [ $EXIT_CODE -eq 1 ]; then
+    log_pass "Exit-code gating (critical) works"
+  else
+    log_fail "Wrong exit code: $EXIT_CODE (expected 1)"
+  fi
+fi
+
+# Test 12b: Gate clears once the critical finding is suppressed
+log_info "Test 12b: Exit-code gating clears with ignore rule..."
+if tsun scan --target https://testphp.vulnweb.com --exit-on-severity critical --ignore plugin:40018 --engine mock >/dev/null 2>&1; then
+  log_pass "Suppressing the critical finding clears the gate"
+else
+  log_fail "Should exit 0 once the critical finding is suppressed"
 fi
 
 # Test 13: Exit-code gating (default = no failure)
@@ -240,6 +256,56 @@ if tsun scan --target https://testphp.vulnweb.com --cookies cookies.txt --engine
   log_pass "Cookie file (Netscape) works"
 else
   log_fail "Cookie file (Netscape) scan failed"
+fi
+
+# ============================================================================
+# SUPPRESSION AND BASELINE GATING
+# ============================================================================
+
+# Test 16b: Ignore rules keep suppressed findings in the report
+log_info "Test 16b: Ignore rules suppress without discarding..."
+tsun scan --target https://testphp.vulnweb.com --engine mock --ignore plugin:10038 \
+  --format json --output ignore-test.json >/dev/null 2>&1
+SUPPRESSED_COUNT=$(grep -c '"suppressed_by"' ignore-test.json || true)
+if grep -q '"suppressed"' ignore-test.json && [ "$SUPPRESSED_COUNT" -ge 1 ]; then
+  log_pass "Ignore rules produce a suppressed section"
+else
+  log_fail "Suppressed section missing from report"
+fi
+
+# Test 16c: An ignore rule with no criteria is rejected
+log_info "Test 16c: Ignore rule with no criteria rejected..."
+if tsun scan --target https://testphp.vulnweb.com --engine mock --ignore reason:because >/dev/null 2>&1; then
+  log_fail "A rule matching everything should be rejected"
+else
+  log_pass "Ignore rule with no criteria rejected"
+fi
+
+# Test 16d: --fail-on-new requires a baseline
+log_info "Test 16d: --fail-on-new requires --baseline..."
+if tsun scan --target https://testphp.vulnweb.com --engine mock --fail-on-new >/dev/null 2>&1; then
+  log_fail "--fail-on-new without --baseline should fail"
+else
+  log_pass "--fail-on-new requires --baseline"
+fi
+
+# Test 16e: --fail-on-new passes when the baseline already knows everything
+log_info "Test 16e: --fail-on-new with an identical baseline..."
+tsun scan --target https://testphp.vulnweb.com --engine mock --format json --output fon-baseline.json >/dev/null 2>&1
+if tsun scan --target https://testphp.vulnweb.com --engine mock --baseline fon-baseline.json \
+    --fail-on-new --exit-on-severity low >/dev/null 2>&1; then
+  log_pass "--fail-on-new passes when nothing is new"
+else
+  log_fail "--fail-on-new should pass when nothing is new"
+fi
+
+# Test 16f: Mock output is labelled as fabricated
+log_info "Test 16f: Mock engine labels its output..."
+MOCK_OUTPUT=$(tsun scan --target https://testphp.vulnweb.com --engine mock 2>&1 || true)
+if echo "$MOCK_OUTPUT" | grep -q "MOCK ENGINE"; then
+  log_pass "Mock engine warns that findings are fake"
+else
+  log_fail "Mock engine did not warn: $MOCK_OUTPUT"
 fi
 
 # ============================================================================

@@ -73,12 +73,30 @@ impl Display {
     }
 
     /// Print a summary table for vulnerabilities
+    /// Unmissable warning that the findings on screen are fabricated.
+    pub fn mock_banner() {
+        let line = "─".repeat(58);
+        println!("\n{}", line.yellow());
+        println!(
+            "{}",
+            "  ⚠  MOCK ENGINE — THESE FINDINGS ARE FAKE".yellow().bold()
+        );
+        println!(
+            "{}",
+            "     No scan was performed against the target.".yellow()
+        );
+        println!("{}", "     Use --engine zap for a real scan.".yellow());
+        println!("{}\n", line.yellow());
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn vulnerability_summary(
         total: usize,
         critical: usize,
         high: usize,
         medium: usize,
         low: usize,
+        info: usize,
     ) {
         Self::section_header("Vulnerability Summary");
 
@@ -110,6 +128,9 @@ impl Display {
         }
         if low > 0 {
             println!("  {} {}", "Low:".dimmed(), low_str.cyan().bold());
+        }
+        if info > 0 {
+            println!("  {} {}", "Info:".dimmed(), info.to_string().dimmed());
         }
     }
 

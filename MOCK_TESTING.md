@@ -2,122 +2,134 @@
 
 ## Overview
 
-Tsun includes a comprehensive mock ZAP client for testing and development without requiring a running OWASP ZAP server.
+Tsun ships a mock scan engine for exercising the CLI, report formats, and CI
+wiring without Docker, a network, or a target.
+
+**The mock engine fabricates findings.** It never contacts the target. Reports
+it produces are stamped `"engine": "mock"`, the terminal prints an unmissable
+banner, and HTML reports carry a warning — so mock output cannot be mistaken
+for a real scan.
 
 ## Usage
 
-### Command Line
-
-Run a mock scan using the `--mock` flag:
-
 ```bash
-tsun scan --target https://example.com --mock
+tsun scan --target https://example.com --engine mock
 ```
 
 With verbose output:
 
 ```bash
-tsun scan --target https://example.com --mock --verbose
+tsun scan --target https://example.com --engine mock --verbose
 ```
 
 Generate a report:
 
 ```bash
-tsun scan --target https://example.com --mock --output report.json --format json
+tsun scan --target https://example.com --engine mock --output report.json --format json
 ```
 
-### What's Included in Mock Scans
+Auth flags (`--header`, `--cookies`, `--login-command`) are accepted but
+ignored, since nothing is sent anywhere. Tsun warns when you pass them.
 
-The mock ZAP client generates realistic vulnerabilities for testing:
+## What the fixture contains
 
-1. **Cookie without Secure Flag** (High)
-   - Common security misconfiguration
-   - Affects session management
+Six findings spanning every severity Tsun can produce, so filtering, gating,
+and suppression are all exercised:
 
-2. **Re-CAPTCHA Detected** (Informational)
-   - Bot protection detection
-   - No security concern
+| Plugin | Finding | ZAP risk / confidence | Tsun severity |
+|--------|---------|----------------------|---------------|
+| 40018 | SQL Injection | High / Confirmed | **Critical** |
+| 40012 | Cross Site Scripting (Reflected) | High / Medium | **High** |
+| 10010 | Cookie Without Secure Flag | Medium / High | **Medium** |
+| 10038 | Content Security Policy Header Not Set | Medium / Medium | **Medium** |
+| 10021 | X-Content-Type-Options Header Missing | Low / Medium | **Low** |
+| 10015 | Server Leaks Version Information | Informational / High | **Info** |
 
-3. **Header Injection** (High)
-   - Potential HTTP header vulnerability
-   - Parameter tampering
+The Critical entry exists specifically so `--exit-on-severity critical` has
+something to fire on; the Informational entry so `--min-severity low` has
+something to exclude.
 
-4. **X-Frame-Options Header Missing** (High)
-   - Clickjacking vulnerability
-   - Common web security issue
+The fixture is defined in `generate_mock_alerts` in `src/zap_mock.rs`.
 
-5. **Strict-Transport-Security Header Missing** (Medium)
-   - Missing HSTS header
-   - SSL/TLS vulnerability
+## Testing modes
 
-6. **Server Leaks Version Information** (Medium)
-   - Information disclosure
-   - Server fingerprinting
-
-## Testing Modes
-
-### Development Testing
-
-Perfect for testing the CLI and report generation:
+### Development
 
 ```bash
-tsun scan --target https://my-app.dev --mock --output test-report.json
+cargo run -- scan --target https://my-app.dev --engine mock --output test-report.json
 ```
 
-### Continuous Integration
+### CI smoke tests
 
-Use mock mode in CI/CD pipelines:
+The mock engine is deterministic and completes in under a second, which makes
+it suitable for testing your pipeline's wiring:
 
-```bash
-# GitHub Actions example
-- name: Run security scan (mock)
-  run: tsun scan --target ${{ env.TARGET_URL }} --mock --output results.json
+```yaml
+- name: Verify scan wiring
+  run: tsun scan --target https://example.com --engine mock --output results.json
 ```
 
-### Integration Testing
+Do not use it as a stand-in for a security scan — it tells you nothing about
+the target.
 
-The Rust test suite uses mock client automatically:
+### Test suite
 
 ```bash
-# Run unit and integration tests
+# Everything
 cargo test
 
-# Run specific test
+# CLI end-to-end (uses the mock engine)
+cargo test --test cli
+
+# ZAP client against a fake ZAP over HTTP
+cargo test --test zap_client
+
+# One test, with output
 cargo test test_mock_scan -- --nocapture
 ```
 
-## Output Examples
+`tests/zap_client.rs` stands up an HTTP server speaking ZAP's API, so the real
+client's URL building, API-key handling, replacer installation, and alert
+parsing are covered without Docker.
 
-### Terminal Output
+## Output examples
+
+### Terminal
 
 ```
-Initializing security scan...
-Using mock ZAP client (test mode)
-Scanning target: https://example.com
-Scan completed successfully
+──────────────────────────────────────────────────────────
+  ⚠  MOCK ENGINE — THESE FINDINGS ARE FAKE
+     No scan was performed against the target.
+     Use --engine zap for a real scan.
+──────────────────────────────────────────────────────────
 
-Vulnerabilities found: 6
-
-Summary:
-  Critical: 0
-  High: 3
+Vulnerability Summary
+  Total Issues: 6
+  Critical: 1
+  High: 1
   Medium: 2
-  Low: 0
+  Low: 1
+  Info: 1
 ```
 
-### JSON Report
+### JSON report
 
 ```json
 {
   "target": "https://example.com",
   "timestamp": "2026-02-01T10:30:00+00:00",
+  "engine": "mock",
   "alerts": [
     {
-      "pluginid": "10010",
-      "alert": "Cookie without Secure Flag",
-      "riskcode": "2",
-      "confidence": "2",
-      "url": "https://example.com/login",
+      "pluginid": "40018",
+      "alert": "SQL Injection",
+      "severity": "critical",
+      "riskcode": "3",
+      "riskdesc": "High",
+      "confidence": "Confirmed",
+      "cvss_score": 9.0,
+      "cvss_estimated": true,
+      "url": "https://example.com/search",
       "instances": [...]
     }
   ]
@@ -126,8 +138,7 @@ Summary:
 
 ## Benefits
 
-- **No External Dependencies**: Test without running ZAP
-- **Fast Execution**: Mock scans complete in seconds
-- **Consistent Results**: Same vulnerabilities every time
-- **CI/CD Ready**: Works in automated pipelines
-- **Development Friendly**: Rapid iteration and testing
+- **No external dependencies** — no Docker, no network, no target
+- **Fast** — completes in under a second
+- **Deterministic** — same findings every run, so baseline diffs are empty
+- **Honest** — every output path labels itself as fabricated

@@ -3,10 +3,16 @@
 ## Module Overview
 
 ### `main.rs`
-Entry point for the CLI application using `clap` for command parsing. Handles three commands:
+Entry point for the CLI application using `clap` for command parsing. Commands:
 - `scan`: Execute security scans
 - `init`: Generate configuration templates
 - `status`: Check ZAP server connectivity
+- `doctor`: Diagnose the local setup
+- `upload-sarif`: Push a SARIF report to GitHub Code Scanning
+
+Also owns exit-code gating (`determine_exit_code`), which decides whether a
+build fails on all findings (`--exit-on-severity`) or only on ones new since a
+baseline (`--fail-on-new`).
 
 ### `scanner.rs`
 Core orchestration logic that:
@@ -15,39 +21,74 @@ Core orchestration logic that:
 - Collects and returns scan results
 
 ### `zap.rs`
-Abstraction layer providing both real and mock ZAP clients through an enum-based interface:
+The real ZAP HTTP client. Engines are selected through the `ScanEngine` trait,
+so `Scanner` holds an `Arc<dyn ScanEngine>` and neither knows nor cares which
+implementation it has:
 
 ```rust
-pub enum ZapClient {
-    Real(RealZapClient),      // HTTP client to real ZAP server
-    Mock(MockZapClient),       // In-memory mock for testing
+#[async_trait]
+pub trait ScanEngine: Send + Sync + Debug {
+    async fn check_health(&self) -> Result<()>;
+    async fn start_scan(&self, target: &str, max_urls: Option<u32>,
+                        attack_strength: Option<&str>,
+                        alert_threshold: Option<&str>) -> Result<String>;
+    async fn wait_for_scan(&self, scan_id: &str, timeout_secs: u64) -> Result<()>;
+    async fn get_alerts(&self, target: &str) -> Result<Vec<Alert>>;
 }
 ```
 
-Key methods:
-- `new()`: Create real ZAP client
-- `mock()`: Create mock ZAP client
-- `start_scan()`: Initiate a security scan
-- `wait_for_scan()`: Poll scan progress
-- `get_alerts()`: Retrieve vulnerabilities
+Two responsibilities worth knowing about:
+
+- **`install_auth_rules()`** installs `--header`/`--cookies` credentials as ZAP
+  *Replacer* rules before scanning. This is what makes them reach the target:
+  setting them on our own HTTP client would only authenticate us to ZAP's API.
+- **`api_get` / `api_get_raw`** are the single path for every ZAP call, so the
+  API key is attached consistently and a 401/403 turns into an actionable
+  error rather than a bare status code.
+
+### `severity.rs`
+Classification and CVSS estimation. ZAP has no "Critical" level, so a High-risk
+finding with High/Confirmed confidence is promoted; Informational stays its own
+level instead of collapsing into Low. Also the only place CVSS scores come
+from — ZAP emits none, so they are estimates and flagged as such.
+
+Three different numeric risk scales exist in this codebase (ZAP's wire format,
+Tsun's legacy `riskcode`, and this enum). The module documents which function
+reads which; user-facing severity input accepts names only.
+
+### `fingerprint.rs`
+Stable identity for findings across scans. Normalizes URLs into templates —
+numeric ids, UUIDs, and content hashes become `{id}`, query values are dropped
+while names are kept — then hashes that with the plugin and injection point.
+Used by baseline comparison and SARIF fingerprints.
+
+### `ignore.rs`
+Suppression rules from config, `--ignore-file`, or `--ignore`. A rule matches
+when every field it specifies matches. Suppressed findings move to
+`ScanReport::suppressed` rather than being discarded.
 
 ### `zap_mock.rs`
-Mock implementation returning realistic test data:
-- 6 different vulnerability types
-- Varying severity levels (Critical, High, Medium, Low)
-- Realistic alert structures matching ZAP API format
+Mock engine returning fabricated findings. Six entries spanning every severity
+including Critical and Info, so gating and filtering are exercised end to end.
+Reports are stamped `engine: "mock"` and every output path says the findings
+are fake.
 
 ### `config.rs`
 Configuration management:
-- YAML file parsing
-- Default configuration
-- Template generation
+- YAML file parsing (including `auth:` and `ignore:` blocks)
+- Default configuration and template generation
+- `resolve_profile()` — merges profile defaults with CLI overrides
 
 ### `report.rs`
-Result reporting with:
-- Alert severity aggregation
-- Multiple export formats (JSON, YAML)
-- Summary generation
+Report models and baseline comparison:
+- `Alert::from_zap()` — the single construction point, so the real and mock
+  engines cannot drift apart in how they classify findings
+- Severity aggregation, filtering, and suppression
+- `ReportComparison` — fingerprint-based new/fixed/unchanged diffing
+- Export to JSON, YAML, HTML, SARIF
+
+`Alert::severity` is an `Option`, so reports written before the field existed
+still load and fall back to the legacy `riskcode`.
 
 ### `lib.rs`
 Library interface exposing public modules for:
@@ -91,20 +132,21 @@ Return Alert structures
 
 ## Testing Strategy
 
-### Unit Tests
-Located in `lib.rs`:
-- Config default values
-- Config template generation
-- Mock scan execution
-- Severity counting
+### Unit tests
+Alongside the code they cover, in each module.
 
-### Integration Tests
-Full end-to-end with mock client:
-```rust
-let scanner = Scanner::new(target, config, true);
-let report = scanner.run().await;
-assert!(report.vulnerability_count() > 0);
-```
+### `tests/zap_client.rs`
+HTTP-level tests against a fake ZAP (wiremock). Covers what the mock engine
+cannot: URL building, API-key propagation, replacer rule installation, health
+checking, and alert parsing across ZAP schema variations.
+
+### `tests/cli.rs`
+Runs the real binary with the mock engine (assert_cmd). Covers argument
+parsing, validation, suppression, report contents, and exit codes — no Docker
+or network needed.
+
+### `scripts/qa_smoke.sh`
+Binary-level smoke tests, with real-ZAP checks behind `TSUN_RUN_ZAP=1`.
 
 ### Manual Testing
 ```bash
@@ -147,39 +189,43 @@ pub fn set_option(&mut self, option: bool) {
 
 ### Adding New Mock Vulnerabilities
 
-Edit `generate_mock_alerts()` in `zap_mock.rs`:
+Add a `MockFinding` to `generate_mock_alerts()` in `zap_mock.rs`. Give it ZAP's
+wire values — risk and confidence as words — and let `Alert::from_zap` derive
+severity and CVSS, so the mock stays consistent with the real engine:
+
 ```rust
-Alert {
-    pluginid: "99999".to_string(),
-    alert: "My Vulnerability".to_string(),
-    riskcode: "2".to_string(),  // Risk level
+MockFinding {
+    plugin_id: "99999",
+    name: "My Vulnerability",
+    risk: "High",
+    confidence: "Medium",
     // ... more fields
 }
 ```
 
 ### Adding a Real ZAP API Call
 
-1. Add method to `RealZapClient`:
+Go through `api_get` (or `api_get_raw` when you need the status), never
+`self.client` directly — that is what attaches the API key and produces
+consistent errors:
+
 ```rust
-pub async fn my_method(&self) -> Result<T> {
-    let url = format!("{}/JSON/path/action/", self.base_url);
-    self.client.get(&url).send().await?.json().await
+async fn my_method(&self) -> Result<T> {
+    let body = self
+        .api_get("/JSON/path/view/thing/", &[("param", value.to_string())])
+        .await?;
+    Ok(serde_json::from_str(&body)?)
 }
 ```
 
-2. Add wrapper to `ZapClient` enum:
-```rust
-pub async fn my_method(&self) -> Result<T> {
-    match self {
-        ZapClient::Real(c) => c.my_method().await,
-        ZapClient::Mock(_) => Ok(/* mock result */),
-    }
-}
-```
+If the call belongs on the engine interface, add it to the `ScanEngine` trait
+and implement it for `MockZapClient` too.
 
 ## Dependencies
 
 - **clap**: CLI argument parsing
+- **maud**: HTML report templating
+- **wiremock / assert_cmd**: integration testing (dev)
 - **tokio**: Async runtime
 - **reqwest**: HTTP client
 - **serde/serde_yaml**: Serialization

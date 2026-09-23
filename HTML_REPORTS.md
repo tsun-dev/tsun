@@ -30,7 +30,7 @@ Tsun generates interactive HTML security scan reports with professional styling 
 #### Detailed Findings
 Each vulnerability includes:
 - **Alert title** with risk badges
-- **Risk level** (Critical, High, Medium, Low)
+- **Risk level** (Critical, High, Medium, Low, Info)
 - **Confidence level** (High, Medium, Low)
 - **Description** of the vulnerability
 - **Affected URL(s)**
@@ -53,7 +53,7 @@ Each vulnerability includes:
 
 Generate HTML report:
 ```bash
-tsun scan --target https://example.com --mock --format html --output report.html
+tsun scan --target https://example.com --engine mock --format html --output report.html
 ```
 
 ### Output
@@ -91,7 +91,7 @@ The generated HTML file is self-contained with:
 ┌─────────────────────────────────────────┐
 │ Vulnerability Summary                   │
 ├─────────────────────────────────────────┤
-│ [0 Critical]  [3 High]  [2 Medium] [1 Low]  [6 Total] │
+│ [1 Critical] [1 High] [2 Medium] [1 Low] [1 Info] [6 Total] │
 └─────────────────────────────────────────┘
 ```
 

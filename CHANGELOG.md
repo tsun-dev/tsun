@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-22
+
+Correctness and hardening release. Several long-standing defects meant Tsun
+reported less than it appeared to; the fixes below change behavior, so read
+"Changed" and "Breaking" before upgrading in CI.
+
+### Fixed
+- **Authenticated scanning actually authenticates.** `--header` and `--cookies`
+  were applied to the HTTP client that talks to ZAP's *own API*, so they never
+  reached the scanned application — every "authenticated" scan ran anonymously.
+  Credentials are now installed as ZAP Replacer rules before scanning, so they
+  ride on every request ZAP sends to the target. A ZAP build without the
+  Replacer add-on now fails loudly instead of scanning anonymously.
+- **`--exit-on-severity critical` can fire.** ZAP emits no Critical risk, and
+  nothing in the pipeline ever produced one, so the gate was unreachable.
+- **CVSS scores are no longer always 0.0** for real scans, which had also made
+  the baseline `is_improvement` calculation structurally meaningless.
+- **Baseline comparison no longer re-flags unchanged findings.** Matching was
+  keyed on the exact URL, so any session id, row id, or cache-buster made a
+  known finding look new on every run.
+- **`tsun status` no longer reports any responding socket as healthy** — it
+  ignored the HTTP status entirely and never checked the response was ZAP.
+- **`--version` reports the right version.** `Cargo.toml` said 0.2.0 while the
+  project was at 0.5.0.
+- HTML reports labelled every finding's confidence "Low", having matched only
+  ZAP's numeric confidence values while the API returns words.
+- Alert parsing no longer fails the whole scan when ZAP omits `alertRef`,
+  `pluginId`, or other optional fields.
+
+### Added
+- **`--fail-on-new`**: gate the build on findings new since `--baseline`, not on
+  the inherited backlog. Combine with `--exit-on-severity` to gate on new
+  findings at or above a severity. Requires `--baseline`, and fails rather than
+  silently passing if the baseline cannot be read.
+- **Ignore rules**, previously advertised but unimplemented. Suppress findings
+  by plugin id, alert name glob, or URL glob — from `tsun.yaml`, an
+  `--ignore-file`, or repeatable `--ignore` flags. Suppressed findings stay in
+  the report under `suppressed` with the rule that hid them, and are excluded
+  from counts and gating. A rule with no criteria is rejected.
+- **Config-file authentication**, previously parsed and then ignored. `auth:`
+  supports `basic`, `bearer`, and `custom` methods; an explicit `--header`
+  overrides a config header of the same name.
+- **ZAP API key support** via `--zap-api-key`, `TSUN_ZAP_API_KEY`, or
+  `zap.api_key`, for external ZAP instances. The key is attached to every API
+  call, and a 401/403 produces an actionable error.
+- **Info severity level**, so informational findings are no longer counted as
+  Low.
+- SARIF results now carry stable `partialFingerprints`, so GitHub tracks an
+  alert across runs instead of reopening it when a URL id changes. Rules gained
+  `helpUri`, CWE tags for recognized plugins, and `security-severity`.
+- Integration tests: `tests/zap_client.rs` exercises the real ZAP client
+  against a fake ZAP over HTTP (wiremock); `tests/cli.rs` runs the binary
+  end to end (assert_cmd). Test count went from 65 to 222.
+- `tsun doctor` and `--fail-on-new` documented; new troubleshooting entries.
+
+### Changed
+- **`--engine` now defaults to `zap` instead of `mock`.** A bare
+  `tsun scan --target ...` previously returned six fabricated findings while
+  the README described a real scan.
+- **The mock engine announces itself.** Terminal banner, `"engine": "mock"` in
+  every report, and a warning in HTML output. Its fixture now spans every
+  severity including Critical and Info.
+- **Severity is derived from ZAP risk *and* confidence.** High risk at
+  High/Confirmed confidence is promoted to Critical; everything else keeps
+  ZAP's level.
+- CVSS scores are estimated from risk and confidence and flagged
+  `cvss_estimated: true`. They are ordering hints, not vendor scores.
+- Baseline findings are matched by fingerprint — plugin, injection point, and a
+  normalized URL — rather than by exact URL.
+- `is_improvement` now requires that no new findings appeared, and weights
+  severity, so trading one critical for two lows still reads as progress.
+- SARIF rule ids are `ZAP-<plugin>` rather than the misleading `OWASP-<plugin>`.
+- Managed ZAP is hardened: the API binds to `127.0.0.1` instead of `0.0.0.0`
+  and always requires an API key (generated per run) instead of
+  `api.disablekey=true`. With host networking, the previous configuration
+  exposed an unauthenticated ZAP — which can be driven to attack arbitrary
+  hosts — to everything on the network, which matters most on shared CI
+  runners. Container readiness now waits for a real version response rather
+  than any open socket.
+- Invalid `--profile` values are rejected instead of silently falling back to
+  the custom defaults, and severity flags are validated before the scan starts
+  rather than after it.
+
+### Removed
+- `features.rs`, the vestigial feature-flag module left over from the paywall,
+  along with the unreachable "Pro required" branch in report saving and the
+  `check_profile_access` no-op.
+- Numeric severity codes in CLI flags (`--min-severity 2`). ZAP's wire format
+  and Tsun's legacy `riskcode` number their levels differently, so a bare
+  number was ambiguous; names are required.
+
+### Breaking
+- `--engine` defaults to `zap`; pass `--engine mock` explicitly for the old
+  default.
+- `--min-severity low` now excludes informational findings, which previously
+  collapsed into Low. Use `--min-severity info` for the old behavior.
+- Severity flags no longer accept numeric codes — use names.
+- Reports gained `engine`, `severity`, `cvss_estimated`, and `suppressed`
+  fields. Reports written by older versions still load: a missing `severity`
+  falls back to `riskcode`.
+- Findings previously reported as High may now be Critical, so an
+  `--exit-on-severity critical` gate that never fired may begin to.
+
 ## [0.5.0] - 2026-03-09
 
 ### Changed

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
@@ -27,35 +27,26 @@ pub trait ScanEngine: Send + Sync + std::fmt::Debug {
 
 /// Create a real ZAP scan engine pointing at `base_url`.
 pub fn new_real_client(base_url: &str) -> Result<Box<dyn ScanEngine>> {
-    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
-    Ok(Box::new(RealZapClient {
-        client,
-        base_url: base_url.to_string(),
-    }))
+    new_real_client_with_headers(base_url, &[], None)
 }
 
-/// Create a real ZAP scan engine with default headers applied.
+/// Create a real ZAP scan engine.
+///
+/// `headers` are credentials for the *scanned target*, not for ZAP's own API.
+/// They are installed as ZAP replacer rules before scanning so they ride along
+/// on the requests ZAP sends out; `api_key` authenticates us to ZAP itself.
 pub fn new_real_client_with_headers(
     base_url: &str,
     headers: &[(String, String)],
+    api_key: Option<String>,
 ) -> Result<Box<dyn ScanEngine>> {
-    let mut header_map = reqwest::header::HeaderMap::new();
-    for (k, v) in headers {
-        if let Ok(name) = reqwest::header::HeaderName::from_bytes(k.as_bytes()) {
-            if let Ok(val) = reqwest::header::HeaderValue::from_str(v) {
-                header_map.insert(name, val);
-            }
-        }
-    }
-
-    let client = Client::builder()
-        .default_headers(header_map)
-        .timeout(Duration::from_secs(30))
-        .build()?;
+    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
     Ok(Box::new(RealZapClient {
         client,
-        base_url: base_url.to_string(),
+        base_url: base_url.trim_end_matches('/').to_string(),
+        api_key,
+        auth_headers: headers.to_vec(),
     }))
 }
 
@@ -68,6 +59,10 @@ pub fn new_mock_client() -> Result<Box<dyn ScanEngine>> {
 pub struct RealZapClient {
     client: Client,
     base_url: String,
+    /// Authenticates Tsun to the ZAP API.
+    api_key: Option<String>,
+    /// Headers to inject into ZAP's outbound requests to the target.
+    auth_headers: Vec<(String, String)>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,15 +98,18 @@ struct ZapAlertsApiResponse {
 
 #[derive(Debug, Deserialize)]
 struct ZapAlertApi {
-    #[serde(alias = "pluginid")]
+    #[serde(default, alias = "pluginid")]
     #[serde(rename = "pluginId")]
     plugin_id: String,
 
-    #[serde(rename = "alertRef")]
+    #[serde(default, rename = "alertRef")]
     alert_ref: String,
 
+    #[serde(default)]
     alert: String,
+    #[serde(default)]
     name: String,
+    #[serde(default)]
     url: String,
 
     #[serde(default)]
@@ -137,26 +135,28 @@ struct ZapAlertApi {
     evidence: Option<String>,
 }
 
-fn zap_risk_to_code(risk: &str) -> String {
-    match risk.to_lowercase().as_str() {
-        // ZAP commonly uses these.
-        "high" => "2".to_string(),
-        "medium" => "1".to_string(),
-        "low" => "0".to_string(),
-        "informational" | "info" => "0".to_string(),
-        // Some ZAP APIs/versions can return numeric-like strings.
-        "3" | "2" | "1" | "0" => risk.to_string(),
-        // Unknown → low.
-        _ => "0".to_string(),
-    }
-}
-
 #[async_trait::async_trait]
 impl ScanEngine for RealZapClient {
     async fn check_health(&self) -> Result<()> {
-        let url = format!("{}/JSON/core/action/version/", self.base_url);
-        self.client.get(&url).send().await?;
-        Ok(())
+        // No blanket context here: api_get already explains connection failures,
+        // and wrapping would mask the specific "check your API key" message.
+        let body = self.api_get("/JSON/core/view/version/", &[]).await?;
+
+        // A 2xx from something that is not ZAP is not a healthy ZAP.
+        let parsed: serde_json::Value = serde_json::from_str(&body).with_context(|| {
+            format!("ZAP returned a non-JSON response: {}", truncate(&body, 200))
+        })?;
+
+        match parsed.get("version").and_then(|v| v.as_str()) {
+            Some(version) => {
+                tracing::info!("ZAP version {}", version);
+                Ok(())
+            }
+            None => anyhow::bail!(
+                "Endpoint responded but does not look like ZAP: {}",
+                truncate(&body, 200)
+            ),
+        }
     }
 
     async fn start_scan(
@@ -179,22 +179,148 @@ impl ScanEngine for RealZapClient {
     }
 }
 
+/// Truncate a response body for error messages so a huge HTML error page does
+/// not swamp the log.
+fn truncate(s: &str, max: usize) -> String {
+    let s = s.trim();
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let head: String = s.chars().take(max).collect();
+    format!("{}… ({} bytes total)", head, s.len())
+}
+
 /// Private implementation helpers for `RealZapClient`.
 impl RealZapClient {
-    /// Access a URL to add it to ZAP's site tree before scanning
-    async fn access_url(&self, target: &str) -> Result<()> {
-        let url = format!(
-            "{}/JSON/core/action/accessUrl/",
-            self.base_url.trim_end_matches('/')
-        );
+    /// Issue a GET against the ZAP API, attaching the API key when configured.
+    /// Returns the raw status and body; callers decide what a failure means.
+    async fn api_get_raw(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<(reqwest::StatusCode, String)> {
+        let url = format!("{}{}", self.base_url, path);
 
-        tracing::debug!("ZAP API: Accessing URL to add to site tree: {}", target);
+        let mut query: Vec<(&str, String)> = params.to_vec();
+        if let Some(ref key) = self.api_key {
+            query.push(("apikey", key.clone()));
+        }
 
-        let request = self.client.get(&url).query(&[("url", target)]).build()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&query)
+            .send()
+            .await
+            .with_context(|| format!("Request to ZAP failed: {}", path))?;
 
-        let resp = self.client.execute(request).await?;
         let status = resp.status();
         let body = resp.text().await?;
+
+        // A 401/403 from ZAP almost always means the API key is wrong; say so
+        // rather than surfacing a bare status code.
+        if status.as_u16() == 401 || status.as_u16() == 403 {
+            anyhow::bail!(
+                "ZAP rejected the request (HTTP {}). Check the ZAP API key{}.",
+                status,
+                if self.api_key.is_some() {
+                    ""
+                } else {
+                    " — none was configured"
+                }
+            );
+        }
+
+        Ok((status, body))
+    }
+
+    /// Issue a GET and require a successful status.
+    async fn api_get(&self, path: &str, params: &[(&str, String)]) -> Result<String> {
+        let (status, body) = self.api_get_raw(path, params).await?;
+        if !status.is_success() {
+            anyhow::bail!(
+                "ZAP API {} failed: HTTP {} - {}",
+                path,
+                status,
+                truncate(&body, 300)
+            );
+        }
+        Ok(body)
+    }
+
+    /// Install the target credentials as ZAP replacer rules.
+    ///
+    /// This is what makes `--header` and `--cookies` reach the scanned
+    /// application: ZAP adds these headers to every request it sends, including
+    /// spider and active-scan traffic. Setting them on our own HTTP client only
+    /// ever authenticated us to ZAP's API, never to the target.
+    async fn install_auth_rules(&self) -> Result<()> {
+        if self.auth_headers.is_empty() {
+            return Ok(());
+        }
+
+        for (name, value) in &self.auth_headers {
+            if value.trim().is_empty() {
+                tracing::warn!("Skipping empty auth header '{}'", name);
+                continue;
+            }
+
+            let description = format!("tsun-auth-{}", name.to_lowercase());
+
+            // Remove any rule left over from a previous run against a reused
+            // ZAP instance; a duplicate description makes addRule fail.
+            let _ = self
+                .api_get_raw(
+                    "/JSON/replacer/action/removeRule/",
+                    &[("description", description.clone())],
+                )
+                .await;
+
+            let params = vec![
+                ("description", description.clone()),
+                ("enabled", "true".to_string()),
+                ("matchType", "REQ_HEADER".to_string()),
+                ("matchString", name.clone()),
+                ("matchRegex", "false".to_string()),
+                ("replacement", value.clone()),
+            ];
+
+            let (status, body) = self
+                .api_get_raw("/JSON/replacer/action/addRule/", &params)
+                .await?;
+
+            if !status.is_success() {
+                if body.contains("does_not_exist") || status.as_u16() == 404 {
+                    anyhow::bail!(
+                        "ZAP's Replacer add-on is not available, so --header/--cookies cannot be \
+                         applied to scan traffic. Use a ZAP image that bundles the Replacer \
+                         add-on (zaproxy/zap-stable does), or remove the auth flags."
+                    );
+                }
+                anyhow::bail!(
+                    "Failed to install auth header '{}' into ZAP: HTTP {} - {}",
+                    name,
+                    status,
+                    truncate(&body, 300)
+                );
+            }
+
+            tracing::info!("Installed auth header '{}' for scan traffic", name);
+        }
+
+        Ok(())
+    }
+
+    /// Access a URL to add it to ZAP's site tree before scanning
+    async fn access_url(&self, target: &str) -> Result<()> {
+        tracing::debug!("ZAP API: Accessing URL to add to site tree: {}", target);
+
+        let (status, body) = self
+            .api_get_raw(
+                "/JSON/core/action/accessUrl/",
+                &[("url", target.to_string())],
+            )
+            .await?;
 
         if !status.is_success() {
             tracing::warn!("ZAP accessUrl warning: HTTP {} - Body: {}", status, body);
@@ -204,11 +330,6 @@ impl RealZapClient {
     }
 
     async fn start_spider_scan(&self, target: &str, max_urls: Option<u32>) -> Result<String> {
-        let url = format!(
-            "{}/JSON/spider/action/scan/",
-            self.base_url.trim_end_matches('/')
-        );
-
         tracing::info!(
             "ZAP API: Spidering target to populate site tree: {}",
             target
@@ -219,11 +340,9 @@ impl RealZapClient {
             query_params.push(("maxChildren", max.to_string()));
         }
 
-        let request = self.client.get(&url).query(&query_params).build()?;
-        let resp = self.client.execute(request).await?;
-
-        let status = resp.status();
-        let body = resp.text().await?;
+        let (status, body) = self
+            .api_get_raw("/JSON/spider/action/scan/", &query_params)
+            .await?;
 
         if !status.is_success() {
             tracing::warn!("ZAP spider scan warning: HTTP {} - Body: {}", status, body);
@@ -243,6 +362,7 @@ impl RealZapClient {
             )
         })?;
 
+        tracing::info!("ZAP spider scan started with id {}", response.scan);
         Ok(response.scan)
     }
 
@@ -255,23 +375,29 @@ impl RealZapClient {
                 anyhow::bail!("Spider timeout exceeded after {}s", timeout_secs);
             }
 
-            let url = format!(
-                "{}/JSON/spider/view/status/",
-                self.base_url.trim_end_matches('/')
-            );
-
-            let resp = self
-                .client
-                .get(&url)
-                .query(&[("scanId", scan_id)])
-                .send()
+            let (status, body) = self
+                .api_get_raw(
+                    "/JSON/spider/view/status/",
+                    &[("scanId", scan_id.to_string())],
+                )
                 .await?;
 
-            let status = resp.status();
-            let body = resp.text().await?;
-
             if !status.is_success() {
-                tracing::warn!("ZAP spider status warning: HTTP {}", status);
+                // ZAP answers `does_not_exist` when it has no such spider scan.
+                // Polling on would just burn the whole timeout on a request
+                // that can never succeed, so surface it now.
+                if body.contains("does_not_exist") {
+                    anyhow::bail!(
+                        "ZAP does not recognize spider scan '{}'. The spider may have been \
+                         removed, or ZAP was restarted mid-scan.",
+                        scan_id
+                    );
+                }
+                tracing::warn!(
+                    "ZAP spider status warning: HTTP {} - Body: {}",
+                    status,
+                    truncate(&body, 300)
+                );
                 sleep(Duration::from_secs(2)).await;
                 continue;
             }
@@ -304,13 +430,12 @@ impl RealZapClient {
         attack_strength: Option<&str>,
         alert_threshold: Option<&str>,
     ) -> Result<String> {
+        // Credentials must be in place before any traffic leaves ZAP, so that
+        // the site tree is built from authenticated responses.
+        self.install_auth_rules().await?;
+
         // First, access the URL to add it to ZAP's site tree
         self.access_url(target).await?;
-
-        let url = format!(
-            "{}/JSON/ascan/action/scan/",
-            self.base_url.trim_end_matches('/')
-        );
 
         tracing::info!("ZAP API: Starting scan for {}", target);
 
@@ -328,12 +453,9 @@ impl RealZapClient {
             query_params.push(("alertThreshold", threshold.to_uppercase()));
         }
 
-        let request = self.client.get(&url).query(&query_params).build()?;
-
-        let resp = self.client.execute(request).await?;
-
-        let status = resp.status();
-        let body = resp.text().await?;
+        let (status, body) = self
+            .api_get_raw("/JSON/ascan/action/scan/", &query_params)
+            .await?;
 
         let (status, body) =
             if !status.is_success() && status.as_u16() == 400 && body.contains("\"url_not_found\"")
@@ -345,11 +467,8 @@ impl RealZapClient {
                 // Keep this short; it's just to populate the site tree.
                 self.wait_for_spider_scan(&spider_id, 60).await?;
 
-                let request = self.client.get(&url).query(&query_params).build()?;
-                let resp = self.client.execute(request).await?;
-                let status = resp.status();
-                let body = resp.text().await?;
-                (status, body)
+                self.api_get_raw("/JSON/ascan/action/scan/", &query_params)
+                    .await?
             } else {
                 (status, body)
             };
@@ -394,23 +513,26 @@ impl RealZapClient {
                 anyhow::bail!("Scan timeout exceeded");
             }
 
-            let url = format!(
-                "{}/JSON/ascan/view/scanProgress/",
-                self.base_url.trim_end_matches('/')
-            );
-
-            let resp = self
-                .client
-                .get(&url)
-                .query(&[("scanId", scan_id)])
-                .send()
+            let (status, body) = self
+                .api_get_raw(
+                    "/JSON/ascan/view/scanProgress/",
+                    &[("scanId", scan_id.to_string())],
+                )
                 .await?;
 
-            let status = resp.status();
-            let body = resp.text().await?;
-
             if !status.is_success() {
-                tracing::warn!("ZAP API warning: HTTP {}", status);
+                if body.contains("does_not_exist") {
+                    anyhow::bail!(
+                        "ZAP does not recognize active scan '{}'. ZAP may have been restarted \
+                         mid-scan.",
+                        scan_id
+                    );
+                }
+                tracing::warn!(
+                    "ZAP API warning: HTTP {} - Body: {}",
+                    status,
+                    truncate(&body, 300)
+                );
                 sleep(Duration::from_secs(2)).await;
                 continue;
             }
@@ -561,25 +683,12 @@ impl RealZapClient {
     }
 
     async fn do_get_alerts(&self, target: &str) -> Result<Vec<crate::report::Alert>> {
-        let url = format!(
-            "{}/JSON/core/view/alerts/?baseurl={}",
-            self.base_url,
-            urlencoding::encode(target)
-        );
-
-        let resp = self.client.get(&url).send().await?;
-
-        let status = resp.status();
-        let body = resp.text().await?;
-
-        if !status.is_success() {
-            tracing::error!("ZAP API error: HTTP {} - Body: {}", status, body);
-            return Err(anyhow::anyhow!(
-                "ZAP get_alerts failed: HTTP {} - {}",
-                status,
-                body
-            ));
-        }
+        let body = self
+            .api_get(
+                "/JSON/core/view/alerts/",
+                &[("baseurl", target.to_string())],
+            )
+            .await?;
 
         // ZAP's alerts schema varies between versions/addons (pluginId vs pluginid, risk vs riskcode, etc).
         // Parse using a tolerant API struct and convert to our internal Alert model.
@@ -595,25 +704,25 @@ impl RealZapClient {
         let alerts = api_response
             .alerts
             .into_iter()
-            .map(|a| crate::report::Alert {
-                pluginid: a.plugin_id,
-                alert_ref: a.alert_ref,
-                alert: a.alert.clone(),
-                name: a.name,
-                riskcode: zap_risk_to_code(&a.risk),
-                confidence: a.confidence,
-                riskdesc: a.risk,
-                url: a.url.clone(),
-                description: a.description,
-                instances: vec![crate::report::AlertInstance {
-                    uri: a.url,
+            .map(|a| {
+                let instances = vec![crate::report::AlertInstance {
+                    uri: a.url.clone(),
                     method: a.method,
                     param: a.param,
                     attack: a.attack,
                     evidence: a.evidence,
-                }],
-                cvss_score: 0.0,
-                vulnerability_type: a.alert,
+                }];
+
+                crate::report::Alert::from_zap(
+                    a.plugin_id,
+                    a.alert_ref,
+                    if a.name.is_empty() { a.alert } else { a.name },
+                    &a.risk,
+                    &a.confidence,
+                    a.url,
+                    a.description,
+                    instances,
+                )
             })
             .collect();
 
